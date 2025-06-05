@@ -28,10 +28,6 @@ const nextConfig = {
   experimental: {
     // This can help with hydration issues
     optimizeCss: true,
-    // Skip type checking to speed up builds
-    skipTypeChecking: true,
-    // Disable server components to avoid hydration issues
-    serverComponents: false,
   },
 };
 
