@@ -13,11 +13,11 @@ DiskDominator is a desktop application for intelligently organizing hard drives 
 
 ### Frontend (Next.js)
 ```bash
-cd frontend
 npm install          # Install dependencies
-npm run dev         # Development server
-npm run build       # Production build
-npm run lint        # Lint code
+npm run dev          # Development server (http://localhost:3000)
+npm run build        # Production build
+npm run lint         # Lint code
+npm run typecheck    # Type checking with TypeScript
 ```
 
 ### Backend (Rust/Tauri)
@@ -92,3 +92,32 @@ This project uses 4 Claude instances for parallel development:
 - Component tests for React components
 - Integration tests for Tauri commands
 - E2E tests for critical user flows
+
+## Frontend Status
+
+### Current State (Initial Import)
+- Frontend code imported from existing project
+- All UI components and views are implemented
+- Uses shadcn/ui component library
+- Multiple views ready: DiskStatus, BigFiles, Duplicates, Organize, Home
+- Theme and accessibility providers configured
+
+### Known Issues to Address
+- Components may have hardcoded data for demo purposes
+- Need to integrate with Tauri backend for real file operations
+- Some TypeScript types may need refinement
+- Performance optimizations pending for large file lists
+
+### File Structure
+```
+├── app/                    # Next.js app directory
+├── components/            
+│   ├── ui/                # shadcn/ui components
+│   ├── views/             # Feature-specific views
+│   ├── providers/         # Context providers
+│   └── shared/            # Shared components
+├── hooks/                 # Custom React hooks
+├── lib/                   # Utility functions
+├── public/                # Static assets
+└── styles/                # Global styles
+```
