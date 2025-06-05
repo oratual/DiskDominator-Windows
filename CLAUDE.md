@@ -5,8 +5,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 
 DiskDominator is a desktop application for intelligently organizing hard drives using AI assistance. The project consists of:
-- **Frontend**: Next.js application (already completed)
-- **Backend**: Rust with Tauri framework
+- **Frontend**: Next.js 14 application with TypeScript (feature-complete, needs backend integration)
+- **Backend**: Rust with Tauri framework (pending implementation)
 - **AI Integration**: Language model integration for intelligent file analysis
 
 ## Development Commands
@@ -17,7 +17,8 @@ npm install          # Install dependencies
 npm run dev          # Development server (http://localhost:3000)
 npm run build        # Production build
 npm run lint         # Lint code
-npm run typecheck    # Type checking with TypeScript
+
+# Note: No test or typecheck scripts defined in package.json yet
 ```
 
 ### Backend (Rust/Tauri)
@@ -32,21 +33,40 @@ cargo tauri build   # Build for production
 ## Architecture
 
 ### Frontend Structure
-- Next.js 14+ with App Router
-- TypeScript for type safety
-- Tailwind CSS for styling
-- Components organized by feature
+- **Next.js 14 App Router**: Single page application with tab-based navigation
+- **State Management**: Context providers (Theme, AIAssistant, Readability)
+- **UI Library**: shadcn/ui components built on Radix UI primitives
+- **Styling**: Tailwind CSS with dark mode and accessibility features
+- **Entry Point**: `app/page.tsx` renders `DiskDominatorV2` component
 
-### Backend Structure
-- Tauri for desktop integration
-- Rust for performance-critical operations
-- File system operations handled securely
-- AI model integration through API calls
+### Component Architecture
+```
+DiskDominatorV2 (Main Container)
+├── TabNavigation (Primary: Home, Analyze, Duplicates | Secondary: Big Files, Organize)
+├── UserMenu/UserProfileButton (User settings and preferences)
+└── View Components (Feature-specific views)
+    ├── HomeView - Dashboard and quick actions
+    ├── DiskStatusView - Disk analysis and scanning
+    ├── DuplicatesView - Find and manage duplicate files
+    ├── BigFilesView - Large file management
+    └── OrganizeView - AI-powered file organization
+```
 
-### Communication
-- Frontend ↔ Backend: Tauri IPC (Inter-Process Communication)
-- Type-safe commands using TypeScript + Rust types
-- Async operations for file scanning
+### Expected Tauri Integration Points
+The frontend expects these Tauri commands (to be implemented):
+- `scan_disk(disk_id: string, scan_type: ScanType)` - Start disk analysis
+- `get_disk_status()` - Get current analysis status
+- `get_large_files(min_size: number)` - Retrieve files above threshold
+- `find_duplicates()` - Detect duplicate files
+- `organize_files(rules: OrganizeRules)` - Apply organization rules
+- `get_file_metadata(path: string)` - Get file details
+- `perform_file_operation(operation: FileOp, paths: string[])` - Move/delete files
+
+### Backend Structure (To Be Implemented)
+- Tauri for desktop integration and file system access
+- Rust for performance-critical file operations
+- Async operations with progress reporting
+- AI model integration for intelligent analysis
 
 ## Claude Squad Workflow
 
@@ -93,31 +113,42 @@ This project uses 4 Claude instances for parallel development:
 - Integration tests for Tauri commands
 - E2E tests for critical user flows
 
-## Frontend Status
+## Frontend Implementation Details
 
-### Current State (Initial Import)
-- Frontend code imported from existing project
-- All UI components and views are implemented
-- Uses shadcn/ui component library
-- Multiple views ready: DiskStatus, BigFiles, Duplicates, Organize, Home
-- Theme and accessibility providers configured
+### Current State
+- **Feature-complete UI** with all views implemented
+- **Mock data** used throughout - needs backend integration
+- **Accessibility features**: High contrast mode, wide spacing, enhanced readability
+- **Dark/Light theme** support with system preference detection
+- **AI Assistant** integrated in each view for contextual help
 
-### Known Issues to Address
-- Components may have hardcoded data for demo purposes
-- Need to integrate with Tauri backend for real file operations
-- Some TypeScript types may need refinement
-- Performance optimizations pending for large file lists
+### Key Implementation Patterns
 
-### File Structure
-```
-├── app/                    # Next.js app directory
-├── components/            
-│   ├── ui/                # shadcn/ui components
-│   ├── views/             # Feature-specific views
-│   ├── providers/         # Context providers
-│   └── shared/            # Shared components
-├── hooks/                 # Custom React hooks
-├── lib/                   # Utility functions
-├── public/                # Static assets
-└── styles/                # Global styles
-```
+1. **Mock Data Simulation**
+   - Components use `setTimeout` to simulate async operations
+   - Progress tracking implemented but uses fake timers
+   - File operations show UI feedback but don't persist
+
+2. **View-Specific Features**
+   - **DiskStatusView**: Disk selection, scan types, exclude patterns
+   - **DuplicatesView**: Group by hash/name/size, preview, batch operations
+   - **BigFilesView**: Size filtering, directory tree, storage stats
+   - **OrganizeView**: Rule-based organization, AI suggestions, preview mode
+
+3. **Build Configuration** (next.config.mjs)
+   ```javascript
+   reactStrictMode: false,  // Disabled to reduce hydration issues
+   images: { unoptimized: true },  // For desktop app
+   typescript: { ignoreBuildErrors: true },  // Temporary - should be fixed
+   eslint: { ignoreDuringBuilds: true }  // Temporary - should be fixed
+   ```
+
+### Integration Checklist for Backend Development
+- [ ] Replace mock disk data with real system disk information
+- [ ] Implement file system scanning with progress callbacks
+- [ ] Add proper error handling for file permissions
+- [ ] Create IPC bridge for all file operations
+- [ ] Implement real duplicate detection algorithm
+- [ ] Add file metadata caching for performance
+- [ ] Integrate AI model for organization suggestions
+- [ ] Handle large file lists with virtualization
