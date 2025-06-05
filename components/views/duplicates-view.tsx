@@ -31,28 +31,6 @@ import { Card } from "@/components/ui/card"
 // Import the DiskSelector component at the top of the file
 import DiskSelector, { type Disk } from "@/components/disk-selector"
 
-// Import API conditionally to avoid errors if it doesn't exist
-let api: any = null
-let useQuery: any
-let useMutation: any
-
-// Initialize useQuery and useMutation with default values
-if (typeof window === "undefined") {
-  useQuery = () => undefined // or some other default value
-  useMutation = () => [() => Promise.resolve(), false]
-} else {
-  try {
-    const convexReact = require("convex/react")
-    useQuery = convexReact.useQuery
-    useMutation = convexReact.useMutation
-    api = require("@/convex/_generated/api").api
-  } catch (error) {
-    console.log("Convex API not available, using mock data")
-    useQuery = () => undefined // or some other default value
-    useMutation = () => [() => Promise.resolve(), false]
-  }
-}
-
 interface DuplicatesViewProps {
   params?: {
     scanId?: string
@@ -387,50 +365,17 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
   const [deleteCount, setDeleteCount] = useState(0)
   const { toast } = useToast()
 
-  // Set up mock delete function if API is not available
+  // Mock delete function for demonstration
   const deleteDuplicatesFn = async (params: { ids: string[] }) => {
-    if (api?.duplicates?.deleteDuplicates) {
-      try {
-        return await api.duplicates.deleteDuplicates(params)
-      } catch (error) {
-        console.log("Error deleting duplicates:", error)
-        return null
-      }
-    }
     // Mock deletion
     return new Promise((resolve) => setTimeout(resolve, 1000))
   }
 
-  // Fetch data inside useEffect
+  // Initialize data with mock data
   useEffect(() => {
-    const fetchedData: any = undefined
-    let initialData: any[] = mockData // Default to mock data
-
-    // Fetch data using useQuery hook
-    const queryResult = undefined
-
-    // Initialize queryResult outside the conditional block
-    const duplicatesData = undefined
-
-    const shouldFetchData = isClient && api?.duplicates?.getDuplicatesByScanId && scanId !== "default"
-    // Initialize queryResult outside the conditional block
-    let initialQueryData = undefined
-
-    // Conditionally call useQuery
-    if (isClient && api?.duplicates?.getDuplicatesByScanId && scanId !== "default") {
-      try {
-        initialQueryData = useQuery(api.duplicates.getDuplicatesByScanId, { scanId })
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        initialQueryData = undefined
-      }
-    }
-
-    // Use fetched data if available, otherwise use mock data
-    initialData = initialQueryData ? initialQueryData : mockData
-    setData(initialData)
+    setData(mockData)
     setInitialDataLoaded(true)
-  }, [api, scanId, isClient, useQuery])
+  }, [isClient])
 
   const columns: ColumnDef<any>[] = [
     {

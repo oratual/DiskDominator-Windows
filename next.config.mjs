@@ -27,7 +27,7 @@ const nextConfig = {
   },
   experimental: {
     // This can help with hydration issues
-    optimizeCss: true,
+    optimizeCss: false,
   },
 };
 
