@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { EnhancedDuplicates } from "./duplicates-view/enhanced-duplicates"
 import { type ColumnDef, getCoreRowModel, useReactTable } from "@tanstack/react-table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -25,6 +26,7 @@ import {
   Eye,
   FolderOpen,
   Info,
+  Zap,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 
@@ -254,7 +256,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
     { id: "J", label: "Disco J:", path: "J:/", color: "purple", usedSpace: 400, totalSpace: 1000 },
   ]
 
-  // Función para formatear tamaños
+  // Import formatSize from utils
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return bytes + " B"
     else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
@@ -708,6 +710,31 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
               />
             </div>
 
+            {/* Quick Actions */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-sm font-medium mb-3">Acciones rápidas</h3>
+              <div className="space-y-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setSelectedView('enhanced')}
+                >
+                  <Zap className="mr-2" size={16} />
+                  Vista mejorada
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start"
+                  onClick={() => setSelectedView('simple')}
+                >
+                  <List className="mr-2" size={16} />
+                  Vista clásica
+                </Button>
+              </div>
+            </div>
+
             {/* Espacio recuperable */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
@@ -1003,6 +1030,16 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
 
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden h-full dark:bg-gray-900">
+        {/* Show enhanced view if selected */}
+        {selectedView === 'enhanced' ? (
+          <div className="flex-1 overflow-auto p-6">
+            <EnhancedDuplicates 
+              selectedDisks={selectedDisks} 
+              onDiskChange={setSelectedDisks}
+            />
+          </div>
+        ) : (
+          <>
         {/* Mobile AI Assistant Toggle */}
         <div className="md:hidden flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-bold">Archivos duplicados</h2>
@@ -1199,6 +1236,8 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
             </button>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   )
