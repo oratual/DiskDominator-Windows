@@ -2,11 +2,14 @@
 
 Aplicación para ordenar discos duros con ayuda de IA
 
+<<<<<<< HEAD
 ## 🚀 Para ejecutar en Windows
 **IMPORTANTE**: Los archivos .hta y .bat DEBEN estar en la carpeta raíz de DiskDominator
 - Usa `DiskDominator-Fixed.hta` (recomendado) 
 - El archivo debe estar junto a `package.json`
 
+=======
+>>>>>>> origin/master
 ## Stack Tecnológico
 
 - **Frontend**: Next.js (completado)

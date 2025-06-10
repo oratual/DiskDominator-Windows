@@ -1,15 +1,23 @@
 {
+<<<<<<< HEAD
   "name": "disk-dominator",
+=======
+  "name": "my-v0-project",
+>>>>>>> origin/master
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+<<<<<<< HEAD
     "lint": "next lint",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build"
+=======
+    "lint": "next lint"
+>>>>>>> origin/master
   },
   "dependencies": {
     "@radix-ui/react-avatar": "1.1.10",
@@ -38,7 +46,10 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
+<<<<<<< HEAD
     "@tauri-apps/cli": "^1.6.3",
+=======
+>>>>>>> origin/master
     "@types/node": "^22",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",

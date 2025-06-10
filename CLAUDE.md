@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
+<<<<<<< HEAD
 DiskDominator is the **flagship product of a modular software suite** for desktop productivity tools. As the first product, it establishes the architecture for shared modules while providing intelligent hard drive organization with AI assistance.
 
 ### Suite Architecture Vision
@@ -16,6 +17,12 @@ DiskDominator is the **flagship product of a modular software suite** for deskto
 - **Backend**: Rust with Tauri framework (pending implementation)
 - **Core Modules**: Shared authentication, localization, AI integration, and UI components
 - **AI Integration**: Modular AI provider system supporting multiple LLMs
+=======
+DiskDominator is a desktop application for intelligently organizing hard drives using AI assistance. The project consists of:
+- **Frontend**: Next.js 14 application with TypeScript (feature-complete, needs backend integration)
+- **Backend**: Rust with Tauri framework (pending implementation)
+- **AI Integration**: Language model integration for intelligent file analysis
+>>>>>>> origin/master
 
 ## Development Commands
 
@@ -40,6 +47,7 @@ cargo tauri build   # Build for production
 
 ## Architecture
 
+<<<<<<< HEAD
 ### Suite Module Structure (New)
 ```
 DiskDominator/
@@ -57,6 +65,12 @@ DiskDominator/
 - **Next.js 14 App Router**: Single page application with tab-based navigation
 - **State Management**: Context providers (Theme, AIAssistant, Readability)
 - **UI Library**: shadcn/ui components built on Radix UI primitives (to be modularized)
+=======
+### Frontend Structure
+- **Next.js 14 App Router**: Single page application with tab-based navigation
+- **State Management**: Context providers (Theme, AIAssistant, Readability)
+- **UI Library**: shadcn/ui components built on Radix UI primitives
+>>>>>>> origin/master
 - **Styling**: Tailwind CSS with dark mode and accessibility features
 - **Entry Point**: `app/page.tsx` renders `DiskDominatorV2` component
 
@@ -84,11 +98,18 @@ The frontend expects these Tauri commands (to be implemented):
 - `perform_file_operation(operation: FileOp, paths: string[])` - Move/delete files
 
 ### Backend Structure (To Be Implemented)
+<<<<<<< HEAD
 - **Tauri**: Desktop integration with Windows-first approach
 - **Rust Modules**: Performance-critical operations as shared libraries
 - **Async Architecture**: Non-blocking operations with progress reporting
 - **Modular AI Integration**: Pluggable providers (OpenAI, Claude, local models)
 - **Platform Abstraction**: Clean separation of Windows/macOS specific code
+=======
+- Tauri for desktop integration and file system access
+- Rust for performance-critical file operations
+- Async operations with progress reporting
+- AI model integration for intelligent analysis
+>>>>>>> origin/master
 
 ## Claude Squad Workflow
 
@@ -106,6 +127,7 @@ This project uses 4 Claude instances for parallel development:
 
 ## Key Features to Implement
 
+<<<<<<< HEAD
 ### Core Modules (Shared Across Suite)
 1. **Authentication Module**
    - User accounts with suite-wide SSO
@@ -123,15 +145,24 @@ This project uses 4 Claude instances for parallel development:
    - Centralized translations
 
 ### DiskDominator Specific
+=======
+>>>>>>> origin/master
 1. **File Scanning Engine**
    - Recursive directory traversal
    - File metadata extraction
    - Progress reporting
 
+<<<<<<< HEAD
 2. **AI-Powered Analysis**
    - File categorization using AI module
    - Duplicate detection algorithms
    - Smart organization suggestions
+=======
+2. **AI Analysis**
+   - File categorization
+   - Duplicate detection
+   - Organization suggestions
+>>>>>>> origin/master
 
 3. **User Interface**
    - Real-time progress updates
