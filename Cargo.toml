@@ -1,0 +1,29 @@
+[workspace]
+resolver = "2"
+members = [
+    "src-tauri",
+    "core-modules/auth-module",
+    "core-modules/i18n-module", 
+    "core-modules/ai-module",
+    "core-modules/ui-components",
+    "core-modules/update-module",
+    "core-modules/storage-module",
+    "core-modules/logger-module"
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["DiskDominator Team"]
+license = "MIT"
+
+[workspace.dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1", features = ["full"] }
+anyhow = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }

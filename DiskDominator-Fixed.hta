@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DiskDominator Launcher</title>
+<HTA:APPLICATION 
+    ID="DiskDominator"
+    APPLICATIONNAME="DiskDominator"
+    BORDER="dialog"
+    BORDERSTYLE="normal"
+    CAPTION="yes"
+    MAXIMIZEBUTTON="no"
+    MINIMIZEBUTTON="yes"
+    SHOWINTASKBAR="yes"
+    SINGLEINSTANCE="yes"
+    SYSMENU="yes"
+    VERSION="0.1.0"
+    WINDOWSTATE="normal"
+    SCROLL="no"
+    CONTEXTMENU="no"
+/>
+
+<style>
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+    color: white;
+    margin: 0;
+    padding: 20px;
+    overflow: hidden;
+}
+
+.container {
+    text-align: center;
+    margin-top: 20px;
+}
+
+.logo {
+    font-size: 48px;
+    margin-bottom: 10px;
+}
+
+h1 {
+    margin: 10px 0;
+    font-weight: 300;
+}
+
+.subtitle {
+    font-size: 18px;
+    opacity: 0.9;
+    margin-bottom: 30px;
+}
+
+.status {
+    background: rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 20px;
+    margin: 20px auto;
+    width: 80%;
+    min-height: 100px;
+}
+
+.status-text {
+    font-size: 16px;
+    line-height: 1.5;
+}
+
+.progress {
+    width: 100%;
+    height: 4px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 2px;
+    margin: 20px 0;
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    background: #4CAF50;
+    width: 0%;
+    transition: width 0.5s;
+}
+
+.error {
+    color: #ff6b6b;
+    font-weight: bold;
+}
+
+.success {
+    color: #4CAF50;
+}
+
+button {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 12px 30px;
+    font-size: 16px;
+    border-radius: 25px;
+    cursor: pointer;
+    margin: 10px;
+    display: none;
+}
+
+button:hover {
+    background: #45a049;
+}
+
+.path-info {
+    font-size: 12px;
+    opacity: 0.7;
+    margin-top: 10px;
+}
+</style>
+
+<script language="VBScript">
+Option Explicit
+
+Dim objShell, objFSO, strPath, objWMI, objProcess
+Set objShell = CreateObject("WScript.Shell")
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+
+' Get the directory where this HTA is located
+Dim strHTAPath
+strHTAPath = window.location.pathname
+strHTAPath = Replace(strHTAPath, "file:///", "")
+strHTAPath = Replace(strHTAPath, "/", "\")
+strHTAPath = objFSO.GetParentFolderName(strHTAPath)
+
+' For WSL paths accessed from Windows
+If InStr(strHTAPath, "\\wsl$") > 0 Or InStr(strHTAPath, "\\wsl.localhost") > 0 Then
+    strPath = strHTAPath & "\"
+Else
+    ' Regular Windows path
+    strPath = strHTAPath & "\"
+End If
+
+Sub Window_OnLoad
+    window.resizeTo 700, 600
+    window.moveTo (screen.width - 700) / 2, (screen.height - 600) / 2
+    ShowPath
+    CheckAndStart
+End Sub
+
+Sub ShowPath
+    document.getElementById("pathInfo").innerHTML = "Project path: " & strPath
+End Sub
+
+Sub CheckAndStart
+    UpdateStatus "Checking system requirements..."
+    
+    ' Check Node.js
+    Dim nodeVersion
+    On Error Resume Next
+    nodeVersion = objShell.Exec("cmd /c node --version").StdOut.ReadAll()
+    On Error GoTo 0
+    
+    If Len(nodeVersion) = 0 Then
+        ShowError "Node.js is not installed!" & vbCrLf & vbCrLf & _
+                  "Please install Node.js from https://nodejs.org/" & vbCrLf & _
+                  "(Recommended: LTS version)"
+        document.getElementById("retryBtn").style.display = "inline-block"
+        Exit Sub
+    End If
+    
+    UpdateStatus "Node.js found: " & Trim(nodeVersion)
+    UpdateProgress 33
+    
+    ' Check if package.json exists
+    Dim packagePath
+    packagePath = strPath & "package.json"
+    
+    UpdateStatus "Checking for package.json at:" & vbCrLf & packagePath
+    
+    If Not objFSO.FileExists(packagePath) Then
+        ShowError "DiskDominator files not found!" & vbCrLf & vbCrLf & _
+                  "Looking for: " & packagePath & vbCrLf & vbCrLf & _
+                  "Please ensure:" & vbCrLf & _
+                  "1. This HTA file is in the DiskDominator folder" & vbCrLf & _
+                  "2. The folder contains package.json" & vbCrLf & vbCrLf & _
+                  "Current directory: " & strPath
+        document.getElementById("retryBtn").style.display = "inline-block"
+        Exit Sub
+    End If
+    
+    UpdateStatus "Found package.json!"
+    UpdateProgress 66
+    
+    ' Check/Install dependencies
+    If Not objFSO.FolderExists(strPath & "node_modules") Then
+        UpdateStatus "Installing dependencies (this may take a few minutes)..."
+        UpdateStatus "Running: npm install"
+        
+        Dim installCmd
+        installCmd = "cmd /c cd /d """ & strPath & """ && npm install"
+        objShell.Run installCmd, 1, True
+    Else
+        UpdateStatus "Dependencies already installed"
+    End If
+    
+    UpdateProgress 100
+    UpdateStatus "Starting DiskDominator server..."
+    
+    ' Start the server
+    Dim startCmd
+    startCmd = "cmd /c cd /d """ & strPath & """ && npm run dev"
+    
+    UpdateStatus "Running: " & startCmd
+    objShell.Run startCmd, 0, False
+    
+    ' Wait a bit for server to start
+    UpdateStatus "Waiting for server to initialize..."
+    window.setTimeout "OpenBrowser", 5000
+End Sub
+
+Sub OpenBrowser
+    UpdateStatus "Opening DiskDominator in your browser..."
+    objShell.Run "http://localhost:3002"
+    
+    document.getElementById("statusText").className = "status-text success"
+    UpdateStatus "DiskDominator is running!" & vbCrLf & _
+                 "You can close this window now." & vbCrLf & vbCrLf & _
+                 "To stop the server, close this window."
+    
+    document.getElementById("closeBtn").style.display = "inline-block"
+End Sub
+
+Sub UpdateStatus(text)
+    document.getElementById("statusText").innerHTML = Replace(text, vbCrLf, "<br>")
+End Sub
+
+Sub UpdateProgress(percent)
+    document.getElementById("progressBar").style.width = percent & "%"
+End Sub
+
+Sub ShowError(text)
+    document.getElementById("statusText").className = "status-text error"
+    UpdateStatus text
+    UpdateProgress 0
+End Sub
+
+Sub RetryStart
+    document.getElementById("retryBtn").style.display = "none"
+    document.getElementById("statusText").className = "status-text"
+    CheckAndStart
+End Sub
+
+Sub CloseApp
+    ' Try to kill npm/node processes
+    On Error Resume Next
+    Set objWMI = GetObject("winmgmts:\\.\root\cimv2")
+    For Each objProcess In objWMI.ExecQuery("SELECT * FROM Win32_Process WHERE Name = 'node.exe'")
+        If InStr(objProcess.CommandLine, "npm") > 0 Or InStr(objProcess.CommandLine, "dev") > 0 Then
+            objProcess.Terminate()
+        End If
+    Next
+    On Error GoTo 0
+    
+    window.close
+End Sub
+</script>
+</head>
+
+<body>
+<div class="container">
+    <div class="logo">💾</div>
+    <h1>DiskDominator</h1>
+    <div class="subtitle">Intelligent Disk Management Suite</div>
+    <div class="path-info" id="pathInfo"></div>
+    
+    <div class="status">
+        <div id="statusText" class="status-text">Initializing...</div>
+        <div class="progress">
+            <div id="progressBar" class="progress-bar"></div>
+        </div>
+    </div>
+    
+    <button id="retryBtn" onclick="RetryStart()">Retry</button>
+    <button id="closeBtn" onclick="CloseApp()">Close</button>
+</div>
+</body>
+</html>

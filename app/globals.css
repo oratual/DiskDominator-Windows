@@ -1,0 +1,437 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+
+    --radius: 0.5rem;
+
+    /* Semantic Colors */
+    --color-star-yellow: 43 96% 56%; /* approx text-yellow-500 */
+    --color-info-blue: 217 91% 60%; /* approx text-blue-600 */
+    --color-success-green-bg: 145 63% 90%; /* approx bg-green-100 */
+    --color-success-green-fg: 145 75% 30%; /* approx text-green-800 */
+    --color-success-green: 145 63% 42%; /* approx green-500 */
+    --color-warning-orange: 30 96% 54%; /* approx orange-500/600 */
+    --color-organize-purple: 271 68% 51%; /* approx purple-500/600 */
+    --progress-background: 210 40% 90%;
+    --chat-user-bg: 210 100% 91%;
+    --chat-ai-bg: 210 40% 96.1%; /* same as secondary/muted */
+    --color-destructive-bg: 0 84% 95%; /* approx red-100 */
+    --color-destructive-fg: 0 70% 35%; /* approx red-800 */
+    --color-organize-purple-bg: 271 68% 95%; /* approx purple-100 */
+    --color-organize-purple-fg: 271 50% 35%; /* approx purple-800 */
+    --modal-overlay-bg: 0 0% 0% / 0.5;
+    --warning-bg-light: 45 100% 95%; /* approx yellow-50 */
+    --warning-fg-light: 40 80% 30%; /* approx yellow-700 */
+    --warning-fg-muted-light: 40 70% 35%; /* approx yellow-600 */
+    --info-bg-light: 210 100% 97%; /* approx blue-50 */
+    --info-border-light: 210 100% 90%; /* approx blue-100 */
+    --info-fg-light: 217 70% 30%; /* approx blue-800 */
+    --color-success-green-fg-muted: 145 50% 40%; /* approx green-600 */
+    --color-organize-purple-fg-muted: 271 50% 45%; /* approx purple-600 */
+
+    /* Tab Colors (Light) */
+    --color-tab-analyze-active-bg: 340 100% 63%; /* #FF4081 */
+    --color-tab-analyze-inactive-bg: 340 70% 70%; /* Lighter #b32b5a */
+    --color-tab-duplicates-active-bg: 187 100% 42%; /* #00b8d4 */
+    --color-tab-duplicates-inactive-bg: 187 100% 27%; /* #007a8c */
+    --color-tab-organize-active-bg: 271 68% 51%; /* #7928CA */
+    --color-tab-organize-inactive-bg: 271 68% 31%; /* approx purple-800 */
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+
+    /* Semantic Colors */
+    --color-star-yellow: 43 96% 56%; /* approx text-yellow-500 */
+    --color-info-blue: 210 100% 71%; /* approx dark:text-blue-400 */
+    --color-success-green-bg: 145 63% 20%; /* approx dark:bg-green-800 */
+    --color-success-green-fg: 145 63% 75%; /* approx dark:text-green-300 */
+    --color-success-green-dark: 145 63% 55%; /* approx dark:green-400 */
+    --color-success-green-bg-dark: 145 63% 15%; /* approx dark:green-900 */
+    --color-warning-orange-dark: 30 96% 64%; /* approx dark:orange-400/500 */
+    --color-organize-purple-dark: 271 68% 61%; /* approx dark:purple-400 */
+    --progress-background-dark: 217.2 32.6% 25%;
+    --chat-user-bg-dark: 217 91% 20% / 0.5;
+    --chat-ai-bg-dark: 217.2 32.6% 17.5%; /* same as secondary/muted */
+    --color-destructive-bg-dark: 0 63% 20%; /* approx dark:red-800/900 */
+    --color-destructive-fg-dark: 0 63% 75%; /* approx dark:red-300 */
+    --color-organize-purple-bg-dark: 271 68% 21%; /* approx dark:purple-900 */
+    --color-organize-purple-fg-dark: 271 68% 71%; /* approx dark:purple-300 */
+    --warning-bg-dark: 45 90% 15%; /* approx dark:yellow-900 */
+    --warning-fg-dark: 45 90% 70%; /* approx dark:yellow-300 */
+    --warning-fg-muted-dark: 45 90% 65%; /* approx dark:yellow-200 */
+    --info-fg-dark: 210 100% 71%; /* approx dark:blue-300 */
+    --color-success-green-fg-muted-dark: 145 63% 65%; /* approx dark:green-200 */
+    --color-organize-purple-fg-muted-dark: 271 68% 65%; /* approx dark:purple-200 */
+
+    /* Tab Colors (Dark) */
+    --color-tab-analyze-active-bg: 340 100% 63% / 0.8; /* #FF4081/80 */
+    --color-tab-analyze-inactive-bg: 340 70% 40% / 0.8; /* Lighter dark:bg-[#b32b5a]/80 */
+    --color-tab-duplicates-active-bg: 187 100% 42% / 0.8; /* #00b8d4/80 */
+    --color-tab-duplicates-inactive-bg: 187 100% 27% / 0.8; /* dark:bg-[#007a8c]/80 */
+    --color-tab-organize-active-bg: 271 68% 51%; /* #7928CA */
+    --color-tab-organize-inactive-bg: 271 68% 21%; /* approx dark:bg-purple-900 */
+  }
+}
+
+/* High contrast mode - Light theme */
+.high-contrast:not(.dark) {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 0% 90%;
+  --secondary-foreground: 0 0% 0%;
+
+  --muted: 0 0% 90%;
+  --muted-foreground: 0 0% 0%;
+
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 0%;
+
+  --destructive: 0 100% 40%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 0 0% 0%;
+}
+
+/* High contrast mode - Dark theme */
+.dark.high-contrast {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+
+  --card: 0 0% 0%;
+  --card-foreground: 0 0% 100%;
+
+  --popover: 0 0% 0%;
+  --popover-foreground: 0 0% 100%;
+
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+
+  --secondary: 0 0% 15%;
+  --secondary-foreground: 0 0% 100%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 100%;
+
+  --accent: 0 0% 15%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 100% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 0 0% 100%;
+  --input: 0 0% 100%;
+  --ring: 0 0% 100%;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: hidden !important; /* Prevent body scrolling */
+    height: 100vh !important;
+    width: 100vw !important;
+  }
+
+  html {
+    overflow: hidden !important; /* Prevent html scrolling */
+    height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  #__next {
+    height: 100vh !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
+
+/* Animaciones para el menú de usuario */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.user-menu-dropdown {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* Clases para los filtros de color - Using direct CSS filters */
+.filter-grayscale {
+  filter: grayscale(100%);
+}
+
+.filter-protanopia {
+  /* Red-blind: reduce red sensitivity */
+  filter: brightness(1.05) saturate(0.9) hue-rotate(10deg);
+}
+
+.filter-deuteranopia {
+  /* Green-blind: reduce green sensitivity */
+  filter: brightness(1.05) saturate(0.8) hue-rotate(-10deg);
+}
+
+.filter-tritanopia {
+  /* Blue-blind: reduce blue sensitivity */
+  filter: brightness(1.05) saturate(0.8) hue-rotate(60deg);
+}
+
+/* Clases para tamaños de texto */
+.text-small {
+  font-size: 0.875rem;
+}
+
+.text-normal {
+  font-size: 1rem;
+}
+
+.text-large {
+  font-size: 1.125rem;
+}
+
+/* Additional high contrast styles for specific elements */
+.high-contrast button {
+  border: 1px solid currentColor;
+}
+
+.high-contrast .disk-dominator-container {
+  border-color: currentColor !important;
+}
+
+.high-contrast:not(.dark) a,
+.high-contrast:not(.dark) button:not([disabled]),
+.high-contrast:not(.dark) .clickable {
+  text-decoration: underline;
+}
+
+.dark.high-contrast a,
+.dark.high-contrast button:not([disabled]),
+.dark.high-contrast .clickable {
+  text-decoration: underline;
+}
+
+/* Increase contrast for borders and focus states */
+.high-contrast *:focus {
+  outline: 2px solid currentColor !important;
+  outline-offset: 2px !important;
+}
+
+/* Clases para espaciado amplio */
+.wide-spacing {
+  letter-spacing: 0.05em;
+  word-spacing: 0.1em;
+  line-height: 1.8;
+}
+
+/* High contrast specific overrides for UI components */
+.high-contrast .bg-blue-600 {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.high-contrast .bg-blue-700 {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.high-contrast .bg-blue-800 {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+.high-contrast .border-blue-400,
+.high-contrast .border-blue-600 {
+  border-color: hsl(var(--border)) !important;
+}
+
+/* Ensure text is always readable in high contrast mode */
+.high-contrast .text-gray-600,
+.high-contrast .text-gray-700 {
+  color: hsl(var(--foreground)) !important;
+}
+
+.high-contrast .text-gray-200,
+.high-contrast .text-gray-300,
+.high-contrast .text-gray-400 {
+  color: hsl(var(--foreground)) !important;
+}
+
+/* Fix for the main container to prevent scrollbars */
+.disk-dominator-container {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  overflow: hidden !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ensure content fits within viewport */
+.disk-dominator-container > div:last-child {
+  max-height: calc(100vh - 56px) !important; /* Adjust based on header height */
+}
+
+/* Optimize mobile display */
+@media (max-width: 640px) {
+  .disk-dominator-container {
+    font-size: 0.9rem;
+  }
+
+  /* Reduce padding on mobile */
+  .p-4 {
+    padding: 0.75rem !important;
+  }
+
+  .p-3 {
+    padding: 0.5rem !important;
+  }
+}
+
+/* Reset any margins that might be causing issues */
+body > div,
+body > div > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Ensure the app takes full height */
+#app {
+  height: 100vh !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Fix for any potential margin issues in the root div */
+div#__next > div {
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* Ensure no margins on any direct children of body */
+body > * {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+/* Add this CSS class for vertical text alignment after the existing CSS */
+
+/* Add vertical text alignment styles */
+.writing-mode-vertical-rl {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+
+/* Ensure consistent height for collapsed tabs */
+.collapsed-tab {
+  height: auto !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+}
+
+.collapsed-tab-text {
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Basic Scrollbar Styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--secondary-foreground));
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--foreground));
+}
