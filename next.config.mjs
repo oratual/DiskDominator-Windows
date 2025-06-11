@@ -1,9 +1,6 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-<<<<<<< HEAD
+{
   output: 'export',
-=======
->>>>>>> origin/master
   reactStrictMode: false, // Disable strict mode to reduce hydration issues
   // This helps with hydration errors by not showing them in production
   onDemandEntries: {

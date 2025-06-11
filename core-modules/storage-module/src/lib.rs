@@ -143,7 +143,7 @@ impl StorageProvider for InMemoryStorage {
 pub struct StorageModule {
     cache: Option<CacheManager>,
     provider: Box<dyn StorageProvider>,
-    config: StorageConfig,
+    config: StorageConfig, // Used in init()
 }
 
 impl StorageModule {
