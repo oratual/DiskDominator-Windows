@@ -1,13 +1,12 @@
+import React from "react";
+import React from "react";
+import React from "react";
+import React from "react";
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { ChevronRight } from "lucide-react"
 import { useMobile } from "@/hooks/use-mobile"
-<<<<<<< HEAD
-import { useTauri, invoke } from "@/hooks/use-tauri"
-import { useDiskScanner } from "@/hooks/use-disk-scanner"
-=======
->>>>>>> origin/master
 import { AIAssistantContext } from "../../disk-dominator-v2-fixed"
 import type { DiskStatus, AIMessage } from "./types"
 import { DiskStatusMessage } from "./components/disk-status-message"

@@ -37,7 +37,7 @@ async fn test_storage_module() {
     let storage = StorageModule::new(PathBuf::from("./test_data")).unwrap();
     
     // Test in-memory storage
-    let metadata = FileMetadata {
+    let metadata = FileInfo {
         path: "/test/file.txt".to_string(),
         size: 1024,
         hash: "test_hash".to_string(),

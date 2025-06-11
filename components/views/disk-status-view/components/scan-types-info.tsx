@@ -1,3 +1,7 @@
+import React from "react";
+import React from "react";
+import React from "react";
+import React from "react";
 "use client"
 import { Zap, HardDrive, AlertCircle } from "lucide-react"
 import { FEATURE_COLORS } from "../types"
