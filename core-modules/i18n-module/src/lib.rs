@@ -36,6 +36,11 @@ pub struct I18nManager {
     fallback_language: String,
 }
 
+/// Main I18n module for DiskDominator (alias for I18nManager)
+pub struct I18nModule {
+    manager: I18nManager,
+}
+
 impl I18nManager {
     pub fn new(default_language: &str) -> Self {
         Self {
@@ -82,6 +87,48 @@ impl I18nManager {
     /// Get current language code
     pub fn current_language(&self) -> &str {
         &self.current_language
+    }
+}
+
+impl I18nModule {
+    pub fn new(language: &str) -> Self {
+        let mut manager = I18nManager::new(language);
+        
+        // Load default English translations
+        let mut en_translations = Translations::default();
+        en_translations.messages.insert("app.title".to_string(), "DiskDominator".to_string());
+        en_translations.messages.insert("menu.file".to_string(), "File".to_string());
+        en_translations.messages.insert("menu.edit".to_string(), "Edit".to_string());
+        en_translations.messages.insert("menu.view".to_string(), "View".to_string());
+        en_translations.messages.insert("menu.help".to_string(), "Help".to_string());
+        
+        manager.load_language(
+            Language {
+                code: "en".to_string(),
+                name: "English".to_string(),
+                native_name: "English".to_string(),
+            },
+            en_translations,
+        );
+        
+        // Set the requested language if it's not English
+        if language != "en" && language != "en-US" {
+            let _ = manager.set_language(language);
+        }
+        
+        Self { manager }
+    }
+    
+    pub fn get(&self, key: &str) -> String {
+        self.manager.get(key).unwrap_or_else(|_| key.to_string())
+    }
+    
+    pub fn set_language(&mut self, language: &str) -> Result<(), I18nError> {
+        self.manager.set_language(language)
+    }
+    
+    pub fn current_language(&self) -> &str {
+        self.manager.current_language()
     }
 }
 

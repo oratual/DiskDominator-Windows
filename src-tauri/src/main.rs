@@ -68,45 +68,4 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
-}pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};
+}

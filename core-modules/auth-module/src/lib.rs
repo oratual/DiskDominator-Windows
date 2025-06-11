@@ -72,6 +72,63 @@ impl AuthProvider for MockAuthProvider {
     }
 }
 
+/// Configuration for authentication module
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    pub provider: AuthProviderType,
+    pub session_timeout_minutes: u32,
+    pub allow_guest: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum AuthProviderType {
+    Mock,
+    Local,
+    OAuth,
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            provider: AuthProviderType::Mock,
+            session_timeout_minutes: 60,
+            allow_guest: true,
+        }
+    }
+}
+
+/// Main authentication module
+pub struct AuthModule {
+    provider: Box<dyn AuthProvider>,
+    config: AuthConfig,
+}
+
+impl AuthModule {
+    pub fn new(config: AuthConfig) -> Self {
+        let provider: Box<dyn AuthProvider> = match config.provider {
+            AuthProviderType::Mock => Box::new(MockAuthProvider),
+            AuthProviderType::Local => Box::new(MockAuthProvider), // TODO: Implement LocalAuthProvider
+            AuthProviderType::OAuth => Box::new(MockAuthProvider), // TODO: Implement OAuthProvider
+        };
+        
+        Self { provider, config }
+    }
+    
+    pub async fn login(&self, username: &str, password: &str) -> Result<(User, Session), AuthError> {
+        let user = self.provider.authenticate(username, password).await?;
+        let session = self.provider.create_session(&user).await?;
+        Ok((user, session))
+    }
+    
+    pub async fn logout(&self, session_id: &str) -> Result<(), AuthError> {
+        self.provider.revoke_session(session_id).await
+    }
+    
+    pub async fn validate_session(&self, session_id: &str) -> Result<Session, AuthError> {
+        self.provider.validate_session(session_id).await
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,5 +138,15 @@ mod tests {
         let provider = MockAuthProvider;
         let user = provider.authenticate("testuser", "password").await.unwrap();
         assert_eq!(user.username, "testuser");
+    }
+    
+    #[tokio::test]
+    async fn test_auth_module() {
+        let module = AuthModule::new(AuthConfig::default());
+        let result = module.login("testuser", "password").await;
+        assert!(result.is_ok());
+        let (user, session) = result.unwrap();
+        assert_eq!(user.username, "testuser");
+        assert_eq!(session.user_id, user.id);
     }
 }

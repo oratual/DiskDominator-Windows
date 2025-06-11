@@ -179,6 +179,58 @@ impl Default for UpdateConfig {
     }
 }
 
+/// Main update module for DiskDominator
+pub struct UpdateModule {
+    provider: Box<dyn UpdateProvider>,
+    config: UpdateConfig,
+    current_version: Version,
+    channel: String,
+}
+
+impl UpdateModule {
+    pub fn new(channel: &str) -> Self {
+        let config = UpdateConfig {
+            update_channel: match channel {
+                "beta" => UpdateChannel::Beta,
+                "nightly" => UpdateChannel::Nightly,
+                _ => UpdateChannel::Stable,
+            },
+            ..Default::default()
+        };
+        
+        Self {
+            provider: Box::new(MockUpdateProvider),
+            config,
+            current_version: Version::new(1, 0, 0),
+            channel: channel.to_string(),
+        }
+    }
+    
+    pub async fn check_for_updates(&self) -> Result<UpdateStatus, UpdateError> {
+        self.provider.check_for_updates(&self.current_version).await
+    }
+    
+    pub async fn download_update(&self, update_info: &UpdateInfo) -> Result<Vec<u8>, UpdateError> {
+        self.provider.download_update(update_info).await
+    }
+    
+    pub async fn install_update(&self, data: Vec<u8>) -> Result<(), UpdateError> {
+        self.provider.install_update(data).await
+    }
+    
+    pub fn get_current_version(&self) -> &Version {
+        &self.current_version
+    }
+    
+    pub fn get_channel(&self) -> &str {
+        &self.channel
+    }
+    
+    pub fn get_config(&self) -> &UpdateConfig {
+        &self.config
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
