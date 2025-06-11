@@ -19,15 +19,18 @@ pub async fn check_updates(
 ) -> Result<Option<UpdateInfo>, String> {
     let updater = state.updater.read().await;
     
+    use update_module::UpdateStatus;
+    
     match updater.check_for_updates().await {
-        Ok(Some(update)) => Ok(Some(UpdateInfo {
-            version: update.version,
-            release_notes: update.changelog,
-            download_url: update.url,
+        Ok(UpdateStatus::UpdateAvailable(update)) => Ok(Some(UpdateInfo {
+            version: update.version.to_string(),
+            release_notes: update.release_notes,
+            download_url: update.download_url,
             size: update.size,
-            is_mandatory: update.mandatory,
+            is_mandatory: update.is_critical,
         })),
-        Ok(None) => Ok(None),
+        Ok(UpdateStatus::UpToDate) => Ok(None),
+        Ok(UpdateStatus::CheckFailed(msg)) => Err(msg),
         Err(e) => Err(e.to_string()),
     }
 }

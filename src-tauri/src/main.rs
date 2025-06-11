@@ -3,9 +3,8 @@
     windows_subsystem = "windows"
 )]
 
-use anyhow::Result;
 use tauri::Manager;
-use tracing::{info, error};
+use tracing::info;
 
 // Import our core modules
 use logger_module::LoggerModule;
@@ -69,5 +68,3 @@ fn main() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
-pub use logger_module::LoggerModule;
-pub use auth_module::{AuthModule, AuthConfig};

@@ -51,5 +51,14 @@ pub async fn ai_analyze(
         _ => return Err("Unknown analysis type".to_string()),
     };
     
-    Ok(response)
+    // Convert AI module response to our response type
+    Ok(AIAnalysisResponse {
+        suggestions: response.suggestions,
+        categories: response.categories.into_iter().map(|c| FileCategory {
+            name: c.name,
+            files: c.files,
+            reason: c.reason,
+        }).collect(),
+        confidence: response.confidence,
+    })
 }

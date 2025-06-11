@@ -57,7 +57,8 @@ pub async fn auth_logout(
 ) -> Result<bool, String> {
     let mut auth = state.auth.write().await;
     
-    auth.logout()
+    // For now, use a mock session id
+    auth.logout("mock-session-id")
         .await
         .map_err(|e| e.to_string())?;
     
