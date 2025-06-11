@@ -1,8 +1,8 @@
-mod file_commands;
-mod auth_commands;
-mod i18n_commands;
-mod ai_commands;
-mod update_commands;
+pub mod file_commands;
+pub mod auth_commands;
+pub mod i18n_commands;
+pub mod ai_commands;
+pub mod update_commands;
 
 pub use file_commands::*;
 pub use auth_commands::*;

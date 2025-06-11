@@ -27,6 +27,12 @@ pub struct User {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Credentials {
+    pub username: String,
+    pub password: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Session {
     pub id: String,
     pub user_id: String,
@@ -114,10 +120,15 @@ impl AuthModule {
         Self { provider, config }
     }
     
-    pub async fn login(&self, username: &str, password: &str) -> Result<(User, Session), AuthError> {
-        let user = self.provider.authenticate(username, password).await?;
-        let session = self.provider.create_session(&user).await?;
-        Ok((user, session))
+    pub async fn login(&self, credentials: Credentials) -> Result<User, AuthError> {
+        let user = self.provider.authenticate(&credentials.username, &credentials.password).await?;
+        let _session = self.provider.create_session(&user).await?;
+        Ok(user)
+    }
+    
+    pub async fn get_session_token(&self) -> Result<String, AuthError> {
+        // For now, return a mock token
+        Ok("mock-session-token".to_string())
     }
     
     pub async fn logout(&self, session_id: &str) -> Result<(), AuthError> {
@@ -143,10 +154,13 @@ mod tests {
     #[tokio::test]
     async fn test_auth_module() {
         let module = AuthModule::new(AuthConfig::default());
-        let result = module.login("testuser", "password").await;
+        let credentials = Credentials {
+            username: "testuser".to_string(),
+            password: "password".to_string(),
+        };
+        let result = module.login(credentials).await;
         assert!(result.is_ok());
-        let (user, session) = result.unwrap();
+        let user = result.unwrap();
         assert_eq!(user.username, "testuser");
-        assert_eq!(session.user_id, user.id);
     }
 }

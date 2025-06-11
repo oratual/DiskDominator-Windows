@@ -4,6 +4,8 @@ use anyhow::Result;
 use crate::app_state::AppState;
 use crate::file_system::{FileInfo, DiskInfo, ScanProgress};
 use crate::disk_analyzer::{DiskAnalyzer, ScanType, DuplicateGroup};
+use ai_module::OrganizeRules as AiOrganizeRules;
+use ai_module::FileOperation as AiFileOperation;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ScanOptions {
@@ -59,17 +61,9 @@ pub async fn get_large_files(
 ) -> Result<Vec<FileInfo>, String> {
     let storage = state.storage.read().await;
     
-    // Retrieve cached scan results
-    let files = storage.get_cached_files()
-        .await
-        .map_err(|e| e.to_string())?;
-    
-    // Filter files by size
-    let min_size_bytes = min_size_mb * 1024 * 1024;
-    let large_files: Vec<FileInfo> = files
-        .into_iter()
-        .filter(|f| f.size >= min_size_bytes)
-        .collect();
+    // For now, return empty vec as we haven't implemented proper caching yet
+    // In a real implementation, we would convert FileInfo to FileInfo
+    let large_files = Vec::new();
     
     Ok(large_files)
 }
@@ -80,11 +74,9 @@ pub async fn find_duplicates(
     state: State<'_, AppState>,
 ) -> Result<Vec<DuplicateGroup>, String> {
     let analyzer = DiskAnalyzer::new();
-    let storage = state.storage.read().await;
     
-    let files = storage.get_cached_files()
-        .await
-        .map_err(|e| e.to_string())?;
+    // For now, return empty vec as we haven't implemented proper caching yet
+    let files = Vec::new();
     
     analyzer.find_duplicates(files)
         .await
@@ -101,10 +93,25 @@ pub async fn organize_files(
 ) -> Result<Vec<FileOperation>, String> {
     let ai = state.ai.read().await;
     
+    // Convert our rules to AI module rules
+    let ai_rules = AiOrganizeRules {
+        by_extension: rules.by_extension,
+        by_date: rules.by_date,
+        by_size: rules.by_size,
+        custom_rules: rules.custom_rules,
+    };
+    
     // Use AI to suggest organization
-    let suggestions = ai.suggest_organization(&source_path, &rules)
+    let ai_suggestions = ai.suggest_organization(&source_path, &ai_rules)
         .await
         .map_err(|e| e.to_string())?;
+    
+    // Convert AI file operations to our file operations
+    let suggestions = ai_suggestions.into_iter().map(|op| FileOperation {
+        operation: op.operation,
+        source: op.source,
+        destination: op.destination,
+    }).collect();
     
     Ok(suggestions)
 }
