@@ -1,5 +1,4 @@
 import React from "react";
-import React from "react";
 import type { FileItem } from "./types"
 import { File, Folder, ImageIcon, FileVideo, Package, Database, Archive, HardDrive } from "lucide-react"
 
