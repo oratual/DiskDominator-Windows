@@ -2,8 +2,7 @@
 //! 
 //! Provides logging functionality across the application
 
-use tracing::{Level, Metadata, Subscriber};
-use tracing_subscriber::{Layer, Registry};
+use tracing::Level;
 
 /// Main logger configuration
 pub struct LoggerConfig {
@@ -23,7 +22,7 @@ impl Default for LoggerConfig {
 }
 
 /// Initialize the logger with the given configuration
-pub fn init_logger(config: LoggerConfig) -> anyhow::Result<()> {
+pub fn init_logger(_config: LoggerConfig) -> anyhow::Result<()> {
     // TODO: Implement logger initialization
     Ok(())
 }
