@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import { useState, useRef, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

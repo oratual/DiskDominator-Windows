@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 import { X, FileText, Folder, HardDrive, Calendar, User, Hash } from "lucide-react"
 
 interface FilePropertiesDialogProps {

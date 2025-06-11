@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import React from "react"
 import { X } from "lucide-react"

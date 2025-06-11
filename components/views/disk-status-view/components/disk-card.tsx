@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 import { HardDrive, Check, AlertCircle, Zap, Pause, Play } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"

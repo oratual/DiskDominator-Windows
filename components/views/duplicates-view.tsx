@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import { useState, useEffect, useRef } from "react"
 import { EnhancedDuplicates } from "./duplicates-view/enhanced-duplicates"

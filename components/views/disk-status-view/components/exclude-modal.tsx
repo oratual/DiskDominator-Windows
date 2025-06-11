@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 import { X, FolderMinus, Save } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import FileExplorer from "@/components/file-explorer"

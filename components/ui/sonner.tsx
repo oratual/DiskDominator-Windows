@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import { useTheme } from "next-themes"
 import { Toaster as Sonner } from "sonner"

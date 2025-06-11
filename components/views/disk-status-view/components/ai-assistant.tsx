@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import type React from "react"
 import { MessageSquare, ChevronRight, ArrowRight } from "lucide-react"

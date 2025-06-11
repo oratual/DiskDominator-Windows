@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import { Eye, FolderOpen, Copy, Trash2 } from "lucide-react"
 import { Card } from "@/components/ui/card"

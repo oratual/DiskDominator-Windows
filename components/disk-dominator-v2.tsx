@@ -1,6 +1,6 @@
-import React from "react";
 "use client"
 
+import React from "react";
 import { useState, useEffect } from "react"
 import { HardDrive, Copy, FileText, LayoutGrid, RefreshCw, Home } from "lucide-react"
 import DuplicatesView from "./views/duplicates-view"

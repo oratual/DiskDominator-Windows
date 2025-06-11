@@ -1,5 +1,5 @@
-import React from "react";
 "use client"
+import React from "react";
 
 import BigFilesView from "./big-files-view/index"
 
