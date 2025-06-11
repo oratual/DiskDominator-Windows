@@ -1,7 +1,6 @@
 import React from "react";
 import React from "react";
 import React from "react";
-import React from "react";
 import { Check, Info, FileText, Copy, LayoutGrid, Pause, Zap, HardDrive } from "lucide-react"
 import type { DiskStatus } from "../types"
 import { getDiskScanningState, formatSingularPlural } from "../utils"
