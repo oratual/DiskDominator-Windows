@@ -199,7 +199,7 @@ export default function BigFilesView() {
           {selectedView === "list" && <FileListView files={largeFiles} openPreview={openPreview} />}
 
           {/* Explorer View */}
-          {selectedView === "explorer" && <FileExplorerView files={largeFiles} openPreview={openPreview} />}
+          {selectedView === "explorer" && <FileExplorerView />}
         </div>
 
         {/* Bottom Action Bar */}

@@ -19,7 +19,7 @@ export function ExcludeModal({
 }: ExcludeModalProps) {
   if (!showExcludeModal) return null
 
-do,   return (
+  return (
     <div className="fixed inset-0 bg-[hsl(var(--modal-overlay-bg))] flex items-center justify-center z-50">
       <div className="bg-[hsl(var(--card))] rounded-lg shadow-lg w-4/5 max-w-6xl h-4/5 flex flex-col dark:bg-[hsl(var(--card))]" >
         <div className="flex items-center justify-between p-4 border-b border-[hsl(var(--border))] dark:border-[hsl(var(--border))]" >

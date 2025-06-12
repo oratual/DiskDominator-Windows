@@ -1,7 +1,6 @@
 "use client"
 import React from "react";
 
-import type React from "react"
 import type { FileItem } from "@/components/file-explorer"
 
 import { useState, useRef, useEffect, useCallback } from "react"

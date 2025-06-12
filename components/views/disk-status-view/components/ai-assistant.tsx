@@ -1,7 +1,6 @@
 "use client"
 import React from "react";
 
-import type React from "react"
 import { MessageSquare, ChevronRight, ArrowRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import type { AIMessage } from "../types"

@@ -23,13 +23,13 @@ pub struct DuplicateGroup {
 }
 
 pub struct DiskAnalyzer {
-    hasher: Hasher,
+    // hasher: Hasher, // Removed unused field
 }
 
 impl DiskAnalyzer {
     pub fn new() -> Self {
         Self {
-            hasher: Hasher::new(),
+            // No fields to initialize
         }
     }
     

@@ -1,3 +1,5 @@
+// Temporarily commented out until i18n_module is available
+/*
 use tauri::State;
 use anyhow::Result;
 use crate::app_state::AppState;
@@ -14,3 +16,4 @@ pub async fn set_language(
     
     Ok(true)
 }
+*/

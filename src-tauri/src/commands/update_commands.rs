@@ -1,3 +1,5 @@
+// Temporarily commented out until update_module is available
+/*
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use anyhow::Result;
@@ -34,3 +36,4 @@ pub async fn check_updates(
         Err(e) => Err(e.to_string()),
     }
 }
+*/

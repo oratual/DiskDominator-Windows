@@ -16,7 +16,7 @@ export const invoke = async <T = any>(
   cmd: string,
   args?: Record<string, any>
 ): Promise<T> => {
-  if (typeof window !== 'undefined' && '__TAURI__' in window) {
+  if (typeof window !== 'undefined' && '__TAURI__' in window && window.__TAURI__) {
     const { invoke } = window.__TAURI__.tauri;
     return invoke<T>(cmd, args);
   }

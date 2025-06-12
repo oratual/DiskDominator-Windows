@@ -55,7 +55,7 @@ interface DiskStatus {
 }
 
 // Update the getDiskScanningState function to also check for completed disks
-function getDiskScanningState(disks: DiskStatus[]) {
+function getDiskScanningState(disks: DiskStatus[]): "idle" | "paused" | "quick-scanning" | "slow-scanning" | "completed" {
   // Check if any disk is in scanning state and not paused
   const hasQuickScanning = disks.some((d) => d.status === "scanning" && d.scanType === "quick" && !d.isPaused)
   const hasSlowScanning = disks.some((d) => d.status === "scanning" && d.scanType === "slow" && !d.isPaused)
@@ -67,7 +67,8 @@ function getDiskScanningState(disks: DiskStatus[]) {
   if (allCompleted) return "completed"
   if (hasPausedScanning) return "paused"
   if (hasQuickScanning) return "quick-scanning"
-  if (hasSlowScanning) return "idle"
+  if (hasSlowScanning) return "slow-scanning"
+  return "idle"
 }
 
 // Update the DiskStatusMessage component to handle the completed state

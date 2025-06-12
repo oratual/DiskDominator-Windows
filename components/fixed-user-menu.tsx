@@ -2,7 +2,6 @@
 
 import React from "react";
 
-import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { CreditCard, History, LogOut, Settings, User, Eye, ChevronDown, Check, Sliders } from "lucide-react"
 import { useTheme } from "next-themes"

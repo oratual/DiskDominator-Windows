@@ -79,12 +79,8 @@ export default function DiskDominatorV2() {
   useEffect(() => {
     // Use requestIdleCallback to defer non-essential work
     const handleIdleProcessing = () => {
-      // Clear any unnecessary timers or intervals that might be running
-      const allIntervals = window._intervals || []
-      if (allIntervals.length > 5) {
-        // Keep only essential intervals
-        allIntervals.slice(5).forEach((id) => clearInterval(id))
-      }
+      // Optimization placeholder - interval management disabled
+      // This function can be used for future performance optimizations
     }
 
     // Use requestIdleCallback if available, otherwise use setTimeout
@@ -97,17 +93,10 @@ export default function DiskDominatorV2() {
     }
   }, [])
 
-  // Add this to the window object to track intervals
+  // Interval tracking disabled due to TypeScript compatibility issues
+  // This was for development optimization but is not essential for the app
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      window._intervals = window._intervals || []
-      const originalSetInterval = window.setInterval
-      window.setInterval = (callback, delay) => {
-        const id = originalSetInterval(callback, delay)
-        window._intervals.push(id)
-        return id
-      }
-    }
+    // Placeholder for future optimization
   }, [])
 
   // Get border color based on active tab

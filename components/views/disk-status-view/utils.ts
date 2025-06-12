@@ -1,7 +1,7 @@
 import type { DiskStatus } from "./types"
 
 // Update the getDiskScanningState function to also check for completed disks
-export function getDiskScanningState(disks: DiskStatus[]) {
+export function getDiskScanningState(disks: DiskStatus[]): "idle" | "paused" | "quick-scanning" | "slow-scanning" | "completed" {
   // Check if any disk is in scanning state and not paused
   const hasQuickScanning = disks.some((d) => d.status === "scanning" && d.scanType === "quick" && !d.isPaused)
   const hasSlowScanning = disks.some((d) => d.status === "scanning" && d.scanType === "slow" && !d.isPaused)
@@ -13,7 +13,8 @@ export function getDiskScanningState(disks: DiskStatus[]) {
   if (allCompleted) return "completed"
   if (hasPausedScanning) return "paused"
   if (hasQuickScanning) return "quick-scanning"
-  if (hasSlowScanning) return "idle"
+  if (hasSlowScanning) return "slow-scanning"
+  return "idle"
 }
 
 export function formatTimeRemaining(seconds: number): string {

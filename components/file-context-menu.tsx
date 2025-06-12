@@ -1,7 +1,6 @@
 "use client"
 import React from "react";
 
-import type React from "react"
 import { useState } from "react"
 import {
   FolderOpen,
@@ -460,7 +459,7 @@ export function FileContextMenu({
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-medium">Type</h3>
-                <p className="text-sm text-muted-foreground">{item?.type.charAt(0).toUpperCase() + item?.type.slice(1)}</p>
+                <p className="text-sm text-muted-foreground">{item?.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : ''}</p>
               </div>
               <Separator />
               <div>

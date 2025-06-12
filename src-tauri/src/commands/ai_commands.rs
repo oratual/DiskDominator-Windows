@@ -1,3 +1,5 @@
+// Temporarily commented out until ai_module is available
+/*
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use anyhow::Result;
@@ -62,3 +64,4 @@ pub async fn ai_analyze(
         confidence: response.confidence,
     })
 }
+*/

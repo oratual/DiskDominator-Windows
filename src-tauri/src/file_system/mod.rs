@@ -1,8 +1,7 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tokio::fs;
-use walkdir::WalkDir;
 use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -83,7 +82,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
     let mut disks = Vec::new();
     
     // Parse df output (simplified)
-    let output = Command::new("df")
+    let _output = Command::new("df")
         .arg("-B1")
         .output()?;
     

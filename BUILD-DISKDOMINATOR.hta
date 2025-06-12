@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DiskDominator Builder</title>
+<HTA:APPLICATION 
+    ID="DiskDominatorBuilder"
+    APPLICATIONNAME="DiskDominator Build Tool"
+    SCROLL="yes"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+    CONTEXTMENU="no"
+    SELECTION="no"
+/>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #1e1e1e;
+    color: #fff;
+    margin: 20px;
+}
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+h1 {
+    color: #00ff88;
+    text-align: center;
+}
+.log {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    padding: 10px;
+    height: 400px;
+    overflow-y: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+button {
+    background: #00ff88;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 10px 5px;
+}
+button:hover {
+    background: #00cc66;
+}
+button:disabled {
+    background: #666;
+    cursor: not-allowed;
+}
+.error {
+    color: #ff4444;
+}
+.success {
+    color: #00ff88;
+}
+.status {
+    padding: 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    margin: 10px 0;
+}
+</style>
+</head>
+<body>
+<div class="container">
+    <h1>🚀 DiskDominator Builder</h1>
+    
+    <div class="status">
+        <strong>Status:</strong> <span id="status">Ready</span><br>
+        <strong>Directory:</strong> K:\_Glados\DiskDominator
+    </div>
+    
+    <div>
+        <button onclick="checkEnvironment()">1. Check Environment</button>
+        <button onclick="installDependencies()">2. Install Dependencies</button>
+        <button onclick="buildNextJS()">3. Build Next.js</button>
+        <button onclick="installRust()">4. Install Rust (if needed)</button>
+        <button onclick="buildTauri()">5. Build Tauri</button>
+        <button onclick="fullBuild()">🏗️ Full Build</button>
+    </div>
+    
+    <div class="log" id="log"></div>
+</div>
+
+<script language="VBScript">
+Dim objShell, objFSO
+Set objShell = CreateObject("WScript.Shell")
+Set objFSO = CreateObject("Scripting.FileSystemObject")
+
+Const PROJECT_DIR = "K:\_Glados\DiskDominator"
+
+Sub Log(message)
+    Dim logDiv
+    Set logDiv = document.getElementById("log")
+    logDiv.innerHTML = logDiv.innerHTML & "[" & Now & "] " & message & vbCrLf
+    logDiv.scrollTop = logDiv.scrollHeight
+End Sub
+
+Sub SetStatus(message)
+    document.getElementById("status").innerHTML = message
+End Sub
+
+Sub RunCommand(command, description)
+    On Error Resume Next
+    
+    Log ">>> " & description
+    Log "Command: " & command
+    SetStatus description
+    
+    ' Change to project directory
+    objShell.CurrentDirectory = PROJECT_DIR
+    
+    ' Execute command
+    Dim objExec
+    Set objExec = objShell.Exec("cmd /c " & command & " 2>&1")
+    
+    ' Read output
+    Do While Not objExec.StdOut.AtEndOfStream
+        Log objExec.StdOut.ReadLine()
+    Loop
+    
+    If objExec.ExitCode = 0 Then
+        Log "<span class='success'>✓ " & description & " completed successfully!</span>"
+    Else
+        Log "<span class='error'>✗ " & description & " failed with exit code: " & objExec.ExitCode & "</span>"
+    End If
+    
+    SetStatus "Ready"
+End Sub
+
+Sub checkEnvironment()
+    Log "=== CHECKING ENVIRONMENT ==="
+    
+    ' Check Node.js
+    RunCommand "node --version", "Checking Node.js"
+    
+    ' Check npm
+    RunCommand "npm --version", "Checking npm"
+    
+    ' Check Rust
+    RunCommand "rustc --version 2>nul || echo Rust not found", "Checking Rust"
+    
+    ' Check cargo
+    RunCommand "cargo --version 2>nul || echo Cargo not found", "Checking Cargo"
+    
+    ' Check for VS Build Tools
+    If objFSO.FolderExists("C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools") Then
+        Log "<span class='success'>✓ Visual Studio Build Tools 2022 found</span>"
+    ElseIf objFSO.FolderExists("C:\Program Files\Microsoft Visual Studio\2022\Community") Then
+        Log "<span class='success'>✓ Visual Studio Community 2022 found</span>"
+    Else
+        Log "<span class='error'>✗ Visual Studio 2022 not found</span>"
+    End If
+    
+    Log "=== ENVIRONMENT CHECK COMPLETE ==="
+End Sub
+
+Sub installDependencies()
+    RunCommand "npm install", "Installing npm dependencies"
+End Sub
+
+Sub buildNextJS()
+    RunCommand "npm run build", "Building Next.js application"
+End Sub
+
+Sub installRust()
+    Log "=== RUST INSTALLATION ==="
+    Log "Please install Rust manually from: https://rustup.rs/"
+    Log "Make sure to:"
+    Log "1. Download rustup-init.exe"
+    Log "2. Run it and select 'MSVC' toolchain"
+    Log "3. Restart this tool after installation"
+    Log "========================"
+    
+    ' Open Rust website
+    objShell.Run "https://rustup.rs/"
+End Sub
+
+Sub buildTauri()
+    Log "=== BUILDING TAURI ==="
+    
+    ' Create simplified Cargo.toml
+    Dim cargoContent
+    cargoContent = "[package]" & vbCrLf & _
+                   "name = ""disk-dominator""" & vbCrLf & _
+                   "version = ""0.1.0""" & vbCrLf & _
+                   "edition = ""2021""" & vbCrLf & vbCrLf & _
+                   "[build-dependencies]" & vbCrLf & _
+                   "tauri-build = { version = ""1"", features = [] }" & vbCrLf & vbCrLf & _
+                   "[dependencies]" & vbCrLf & _
+                   "tauri = { version = ""1"", features = [""fs-all"", ""path-all"", ""os-all"", ""shell-open""] }" & vbCrLf & _
+                   "serde = { version = ""1.0"", features = [""derive""] }" & vbCrLf & _
+                   "serde_json = ""1.0""" & vbCrLf & vbCrLf & _
+                   "[features]" & vbCrLf & _
+                   "default = [""custom-protocol""]" & vbCrLf & _
+                   "custom-protocol = [""tauri/custom-protocol""]"
+    
+    ' Backup original
+    If objFSO.FileExists(PROJECT_DIR & "\src-tauri\Cargo.toml") Then
+        objFSO.CopyFile PROJECT_DIR & "\src-tauri\Cargo.toml", PROJECT_DIR & "\src-tauri\Cargo.toml.backup", True
+    End If
+    
+    ' Write new Cargo.toml
+    Dim objFile
+    Set objFile = objFSO.CreateTextFile(PROJECT_DIR & "\src-tauri\Cargo.toml", True)
+    objFile.Write cargoContent
+    objFile.Close
+    
+    ' Remove workspace Cargo.toml if exists
+    If objFSO.FileExists(PROJECT_DIR & "\Cargo.toml") Then
+        objFSO.MoveFile PROJECT_DIR & "\Cargo.toml", PROJECT_DIR & "\Cargo.toml.workspace-backup"
+    End If
+    
+    ' Run Tauri build
+    RunCommand "npm run tauri:build", "Building Tauri application"
+    
+    ' Check if build succeeded
+    If objFSO.FileExists(PROJECT_DIR & "\src-tauri\target\release\disk-dominator.exe") Then
+        Log "<span class='success'>✓ BUILD SUCCESSFUL!</span>"
+        Log "Executable: " & PROJECT_DIR & "\src-tauri\target\release\disk-dominator.exe"
+        
+        ' Open folder
+        objShell.Run "explorer.exe " & PROJECT_DIR & "\src-tauri\target\release"
+    Else
+        Log "<span class='error'>✗ Build failed - executable not found</span>"
+    End If
+End Sub
+
+Sub fullBuild()
+    checkEnvironment()
+    installDependencies()
+    buildNextJS()
+    buildTauri()
+End Sub
+</script>
+</body>
+</html>

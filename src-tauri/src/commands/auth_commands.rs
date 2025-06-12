@@ -1,3 +1,5 @@
+// Temporarily commented out until auth_module is available
+/*
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use anyhow::Result;
@@ -64,3 +66,4 @@ pub async fn auth_logout(
     
     Ok(true)
 }
+*/

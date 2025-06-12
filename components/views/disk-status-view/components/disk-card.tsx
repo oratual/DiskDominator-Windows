@@ -4,7 +4,7 @@ import { HardDrive, Check, AlertCircle, Zap, Pause, Play } from "lucide-react"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 import { type DiskStatus, FEATURE_COLORS } from "../types"
-import { getStatusText, getStatusColor, getScanTypeText, formatTimeRemaining } from "../utils"
+import { getStatusText, getScanTypeText, formatTimeRemaining } from "../utils"
 
 interface DiskCardProps {
   disk: DiskStatus
@@ -61,7 +61,7 @@ export function DiskCard({ disk, startScan, togglePauseScan }: DiskCardProps) {
             <HardDrive className="h-4 w-4 mr-1.5 text-[hsl(var(--foreground))] dark:text-[hsl(var(--foreground))]" />
             <h3 className="font-medium text-[hsl(var(--foreground))] text-sm dark:text-[hsl(var(--foreground))]" >{disk.name}</h3>
           </div>
-          <div className={cn("text-xs font-medium", getStatusColor(disk.status, disk.scanType, disk.isPaused))}>
+          <div className="text-xs font-medium">
             <div className="flex items-center">
               {getStatusIcon(disk.status, disk.scanType, disk.isPaused)}
               <span className="ml-1 text-[hsl(var(--foreground))] dark:text-[hsl(var(--foreground))]" >{getStatusText(disk.status, disk.isPaused)}</span>

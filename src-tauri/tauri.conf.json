@@ -26,6 +26,12 @@
       },
       "os": {
         "all": true
+      },
+      "window": {
+        "all": true
+      },
+      "dialog": {
+        "all": true
       }
     },
     "bundle": {
@@ -36,7 +42,9 @@
         "depends": []
       },
       "externalBin": [],
-      "icon": [],
+      "icon": [
+        "icons/icon.ico"
+      ],
       "identifier": "com.diskdominator.suite",
       "longDescription": "DiskDominator is a powerful disk management tool that helps you organize, clean, and optimize your storage with AI-powered assistance.",
       "macOS": {

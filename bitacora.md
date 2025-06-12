@@ -1,5 +1,25 @@
 # Diario de Bitácora - Análisis DiskDominator
 
+## Fecha: 2025-01-11
+
+### 🔧 Actualización de instrucciones de compilación para Windows
+- **Hora**: 14:30
+- **Tarea**: Actualizar documentación de build con información de Tauri v2 y requisitos 2025
+- **Archivos actualizados**:
+  1. `BUILD-TAURI-WINDOWS.bat` - Mejorado con checks más detallados y mejor manejo de errores
+  2. `docs/development/WINDOWS-BUILD-INSTRUCTIONS-2025.md` - Nueva documentación completa
+  3. `TAURI-BUILD-QUICKSTART.md` - Guía de referencia rápida
+
+**Cambios principales:**
+- Agregados checks para MSVC toolchain, WebView2, y Visual Studio Build Tools
+- Documentación actualizada con requisitos de Tauri v2 (aunque el proyecto usa v1)
+- Soluciones para errores comunes de compilación
+- Mejor feedback durante el proceso de build
+
+**Nota**: El proyecto actualmente usa Tauri v1, pero la documentación incluye path de migración a v2.
+
+---
+
 ## Fecha: 2025-01-07
 
 ### 🚀 Inicio del análisis

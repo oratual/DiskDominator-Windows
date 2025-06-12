@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>DiskDominator Builder</title>
+<HTA:APPLICATION 
+    ID="DiskDominatorBuilder"
+    APPLICATIONNAME="DiskDominator Build Tool"
+    SCROLL="yes"
+    SINGLEINSTANCE="yes"
+    WINDOWSTATE="normal"
+/>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #1e1e1e;
+    color: #fff;
+    margin: 20px;
+}
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+h1 {
+    color: #00ff88;
+    text-align: center;
+}
+.log {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    padding: 10px;
+    height: 400px;
+    overflow-y: auto;
+    font-family: 'Consolas', monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+button {
+    background: #00ff88;
+    color: #000;
+    border: none;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+    margin: 10px 5px;
+}
+button:hover {
+    background: #00cc66;
+}
+.error { color: #ff4444; }
+.success { color: #00ff88; }
+.status {
+    padding: 10px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    margin: 10px 0;
+}
+</style>
+<script language="JavaScript">
+var objShell = new ActiveXObject("WScript.Shell");
+var objFSO = new ActiveXObject("Scripting.FileSystemObject");
+var PROJECT_DIR = "K:\\_Glados\\DiskDominator";
+
+function log(message) {
+    var logDiv = document.getElementById("log");
+    var timestamp = new Date().toLocaleString();
+    logDiv.innerHTML += "[" + timestamp + "] " + message + "\n";
+    logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+function setStatus(message) {
+    document.getElementById("status").innerHTML = message;
+}
+
+function runCommand(command, description) {
+    try {
+        log(">>> " + description);
+        log("Command: " + command);
+        setStatus(description);
+        
+        // Create a temporary batch file to capture output
+        var tempBat = objFSO.GetSpecialFolder(2) + "\\temp_build.bat";
+        var tempOut = objFSO.GetSpecialFolder(2) + "\\temp_out.txt";
+        
+        var batFile = objFSO.CreateTextFile(tempBat, true);
+        batFile.WriteLine("@echo off");
+        batFile.WriteLine("cd /d " + PROJECT_DIR);
+        batFile.WriteLine(command + " > \"" + tempOut + "\" 2>&1");
+        batFile.WriteLine("echo %ERRORLEVEL% >> \"" + tempOut + "\"");
+        batFile.Close();
+        
+        // Execute and wait
+        objShell.Run("cmd /c \"" + tempBat + "\"", 0, true);
+        
+        // Read output
+        if (objFSO.FileExists(tempOut)) {
+            var outFile = objFSO.OpenTextFile(tempOut, 1);
+            var output = outFile.ReadAll();
+            outFile.Close();
+            
+            var lines = output.split("\n");
+            var exitCode = lines[lines.length - 2] || "0";
+            
+            for (var i = 0; i < lines.length - 1; i++) {
+                if (lines[i].trim()) log(lines[i]);
+            }
+            
+            if (exitCode.trim() === "0") {
+                log("<span class='success'>✓ " + description + " completed successfully!</span>");
+            } else {
+                log("<span class='error'>✗ " + description + " failed</span>");
+            }
+            
+            // Clean up
+            objFSO.DeleteFile(tempBat);
+            objFSO.DeleteFile(tempOut);
+        }
+        
+        setStatus("Ready");
+    } catch (e) {
+        log("<span class='error'>Error: " + e.message + "</span>");
+        setStatus("Error");
+    }
+}
+
+function checkEnvironment() {
+    log("=== CHECKING ENVIRONMENT ===");
+    runCommand("node --version", "Checking Node.js");
+    runCommand("npm --version", "Checking npm");
+    runCommand("rustc --version 2>nul || echo Rust not found", "Checking Rust");
+    runCommand("cargo --version 2>nul || echo Cargo not found", "Checking Cargo");
+    log("=== CHECK COMPLETE ===");
+}
+
+function installDependencies() {
+    runCommand("npm install", "Installing npm dependencies");
+}
+
+function buildNextJS() {
+    runCommand("npm run build", "Building Next.js application");
+}
+
+function installRust() {
+    log("=== RUST INSTALLATION ===");
+    log("Opening Rust installer website...");
+    log("Please:");
+    log("1. Download rustup-init.exe");
+    log("2. Run it and select 'MSVC' toolchain");
+    log("3. Restart this tool after installation");
+    objShell.Run("https://rustup.rs/");
+}
+
+function buildTauri() {
+    log("=== BUILDING TAURI ===");
+    
+    try {
+        // Create simplified Cargo.toml
+        var cargoPath = PROJECT_DIR + "\\src-tauri\\Cargo.toml";
+        var cargoBackup = PROJECT_DIR + "\\src-tauri\\Cargo.toml.backup";
+        
+        // Backup
+        if (objFSO.FileExists(cargoPath)) {
+            objFSO.CopyFile(cargoPath, cargoBackup, true);
+        }
+        
+        // Write new Cargo.toml
+        var cargoFile = objFSO.CreateTextFile(cargoPath, true);
+        cargoFile.WriteLine("[package]");
+        cargoFile.WriteLine("name = \"disk-dominator\"");
+        cargoFile.WriteLine("version = \"0.1.0\"");
+        cargoFile.WriteLine("edition = \"2021\"");
+        cargoFile.WriteLine("");
+        cargoFile.WriteLine("[build-dependencies]");
+        cargoFile.WriteLine("tauri-build = { version = \"1\", features = [] }");
+        cargoFile.WriteLine("");
+        cargoFile.WriteLine("[dependencies]");
+        cargoFile.WriteLine("tauri = { version = \"1\", features = [\"fs-all\", \"path-all\", \"os-all\", \"shell-open\"] }");
+        cargoFile.WriteLine("serde = { version = \"1.0\", features = [\"derive\"] }");
+        cargoFile.WriteLine("serde_json = \"1.0\"");
+        cargoFile.WriteLine("");
+        cargoFile.WriteLine("[features]");
+        cargoFile.WriteLine("default = [\"custom-protocol\"]");
+        cargoFile.WriteLine("custom-protocol = [\"tauri/custom-protocol\"]");
+        cargoFile.Close();
+        
+        // Remove workspace Cargo.toml
+        var workspaceCargo = PROJECT_DIR + "\\Cargo.toml";
+        if (objFSO.FileExists(workspaceCargo)) {
+            objFSO.MoveFile(workspaceCargo, PROJECT_DIR + "\\Cargo.toml.workspace-backup");
+        }
+        
+        log("Cargo.toml created successfully");
+        
+        // Run build
+        runCommand("npm run tauri:build", "Building Tauri application");
+        
+        // Check result
+        setTimeout(function() {
+            var exePath = PROJECT_DIR + "\\src-tauri\\target\\release\\disk-dominator.exe";
+            if (objFSO.FileExists(exePath)) {
+                log("<span class='success'>✓ BUILD SUCCESSFUL!</span>");
+                log("Executable: " + exePath);
+                objShell.Run("explorer.exe \"" + PROJECT_DIR + "\\src-tauri\\target\\release\"");
+            }
+        }, 5000);
+        
+    } catch (e) {
+        log("<span class='error'>Error in buildTauri: " + e.message + "</span>");
+    }
+}
+
+function fullBuild() {
+    checkEnvironment();
+    setTimeout(function() { installDependencies(); }, 2000);
+    setTimeout(function() { buildNextJS(); }, 10000);
+    setTimeout(function() { buildTauri(); }, 20000);
+}
+</script>
+</head>
+<body>
+<div class="container">
+    <h1>🚀 DiskDominator Builder</h1>
+    
+    <div class="status">
+        <strong>Status:</strong> <span id="status">Ready</span><br>
+        <strong>Directory:</strong> K:\_Glados\DiskDominator
+    </div>
+    
+    <div>
+        <button onclick="checkEnvironment()">1. Check Environment</button>
+        <button onclick="installDependencies()">2. Install Dependencies</button>
+        <button onclick="buildNextJS()">3. Build Next.js</button>
+        <button onclick="installRust()">4. Install Rust</button>
+        <button onclick="buildTauri()">5. Build Tauri</button>
+        <button onclick="fullBuild()">🏗️ Full Build</button>
+    </div>
+    
+    <div class="log" id="log"></div>
+</div>
+</body>
+</html>
