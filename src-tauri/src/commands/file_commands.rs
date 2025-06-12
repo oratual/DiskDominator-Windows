@@ -7,7 +7,7 @@ use crate::disk_analyzer::{DiskAnalyzer, ScanType, DuplicateGroup};
 // use ai_module::OrganizeRules as AiOrganizeRules;
 // use ai_module::FileOperation as AiFileOperation;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanOptions {
     pub scan_type: ScanType,
     pub exclude_patterns: Vec<String>,
@@ -28,6 +28,24 @@ pub struct FileOperation {
     pub destination: Option<String>,
 }
 
+/// Get current scan progress
+#[tauri::command]
+pub async fn get_scan_progress(
+    state: State<'_, AppState>,
+) -> Result<crate::disk_analyzer::ScanProgress, String> {
+    if let Some(analyzer) = &*state.current_analyzer.read().await {
+        Ok(analyzer.get_progress().await)
+    } else {
+        Ok(crate::disk_analyzer::ScanProgress {
+            total_files: 0,
+            processed_files: 0,
+            total_size: 0,
+            current_path: String::new(),
+            errors: Vec::new(),
+        })
+    }
+}
+
 /// Scan a disk or directory
 #[tauri::command]
 pub async fn scan_disk(
@@ -37,15 +55,31 @@ pub async fn scan_disk(
 ) -> Result<Vec<FileInfo>, String> {
     let analyzer = DiskAnalyzer::new();
     
+    // Store analyzer for progress tracking
+    {
+        let mut current = state.current_analyzer.write().await;
+        *current = Some(analyzer);
+    }
+    
     // Perform the scan
-    let files = analyzer.scan_directory(&path, &options)
-        .await
-        .map_err(|e| e.to_string())?;
+    let files = {
+        let guard = state.current_analyzer.read().await;
+        let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+        analyzer.scan_directory(&path, &options)
+            .await
+            .map_err(|e| e.to_string())?
+    };
     
     // Store results in app state for later use
     {
         let mut storage = state.storage.write().await;
         storage.scan_results.insert(path.clone(), files.clone());
+    }
+    
+    // Clear current analyzer
+    {
+        let mut current = state.current_analyzer.write().await;
+        *current = None;
     }
     
     Ok(files)

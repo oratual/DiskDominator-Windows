@@ -50,16 +50,13 @@ pub async fn get_system_disks() -> Result<Vec<DiskInfo>> {
 
 #[cfg(target_os = "windows")]
 async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
-    use std::ffi::OsStr;
-    use std::os::windows::ffi::OsStrExt;
-    
     let mut disks = Vec::new();
     
     // Get logical drives (simplified implementation)
     for letter in b'A'..=b'Z' {
         let drive = format!("{}:\\", letter as char);
         if Path::new(&drive).exists() {
-            if let Ok(metadata) = fs::metadata(&drive).await {
+            if let Ok(_metadata) = fs::metadata(&drive).await {
                 disks.push(DiskInfo {
                     name: format!("Local Disk ({}:)", letter as char),
                     mount_point: drive,

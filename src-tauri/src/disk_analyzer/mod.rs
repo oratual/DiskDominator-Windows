@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use std::collections::HashMap;
-use blake3::Hasher;
-use tokio::fs::File;
+use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
+use tokio::fs;
 use tokio::io::{AsyncReadExt, BufReader};
+use sha2::{Sha256, Digest};
 use crate::file_system::FileInfo;
 use crate::commands::file_commands::ScanOptions;
 
@@ -22,59 +25,153 @@ pub struct DuplicateGroup {
     pub potential_savings: u64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScanProgress {
+    pub total_files: u64,
+    pub processed_files: u64,
+    pub total_size: u64,
+    pub current_path: String,
+    pub errors: Vec<String>,
+}
+
 pub struct DiskAnalyzer {
-    // hasher: Hasher, // Removed unused field
+    progress: Arc<Mutex<ScanProgress>>,
 }
 
 impl DiskAnalyzer {
     pub fn new() -> Self {
         Self {
-            // No fields to initialize
+            progress: Arc::new(Mutex::new(ScanProgress {
+                total_files: 0,
+                processed_files: 0,
+                total_size: 0,
+                current_path: String::new(),
+                errors: Vec::new(),
+            })),
         }
     }
     
-    /// Scan directory and return file information
+    pub async fn get_progress(&self) -> ScanProgress {
+        self.progress.lock().await.clone()
+    }
+    
+    /// Scan directory and return file information with real-time progress
     pub async fn scan_directory(
         &self,
         path: &str,
         options: &ScanOptions,
     ) -> Result<Vec<FileInfo>> {
-        use walkdir::WalkDir;
-        let mut files = Vec::new();
+        let path = PathBuf::from(path);
+        let (tx, mut rx) = mpsc::channel::<FileInfo>(1000);
+        let progress = self.progress.clone();
+        let options = options.clone();
         
-        for entry in WalkDir::new(path)
-            .follow_links(false)
-            .into_iter()
-            .filter_map(|e| e.ok())
+        // Reset progress
         {
-            // Skip excluded patterns
-            let path_str = entry.path().to_string_lossy();
+            let mut prog = progress.lock().await;
+            prog.total_files = 0;
+            prog.processed_files = 0;
+            prog.total_size = 0;
+            prog.errors.clear();
+        }
+        
+        // Spawn task to scan directory
+        let scan_task = tokio::spawn(async move {
+            Self::scan_recursive(path, tx, progress, &options).await
+        });
+        
+        // Collect results
+        let mut files = Vec::new();
+        while let Some(file) = rx.recv().await {
+            files.push(file);
+        }
+        
+        // Wait for scan to complete
+        scan_task.await??;
+        
+        Ok(files)
+    }
+    
+    async fn scan_recursive(
+        path: PathBuf,
+        tx: mpsc::Sender<FileInfo>,
+        progress: Arc<Mutex<ScanProgress>>,
+        options: &ScanOptions,
+    ) -> Result<()> {
+        let mut entries = fs::read_dir(&path).await?;
+        
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            let metadata = match entry.metadata().await {
+                Ok(m) => m,
+                Err(e) => {
+                    let mut prog = progress.lock().await;
+                    prog.errors.push(format!("Error reading {}: {}", path.display(), e));
+                    continue;
+                }
+            };
+            
+            // Update current path
+            {
+                let mut prog = progress.lock().await;
+                prog.current_path = path.to_string_lossy().to_string();
+            }
+            
+            // Check excluded patterns
+            let path_str = path.to_string_lossy();
             if options.exclude_patterns.iter().any(|p| path_str.contains(p)) {
                 continue;
             }
             
-            if let Ok(metadata) = entry.metadata() {
-                if metadata.is_file() {
-                    let file_info = FileInfo {
-                        path: entry.path().to_string_lossy().to_string(),
-                        name: entry.file_name().to_string_lossy().to_string(),
-                        size: metadata.len(),
-                        modified: metadata.modified()?.into(),
-                        created: metadata.created()?.into(),
-                        is_directory: false,
-                        extension: entry.path()
-                            .extension()
-                            .and_then(|e| e.to_str())
-                            .map(|e| e.to_string()),
-                        hash: None,
-                    };
-                    
-                    files.push(file_info);
+            if metadata.is_dir() {
+                // Recursively scan subdirectory
+                if let Err(e) = Box::pin(Self::scan_recursive(
+                    path.clone(),
+                    tx.clone(),
+                    progress.clone(),
+                    options,
+                )).await {
+                    let mut prog = progress.lock().await;
+                    prog.errors.push(format!("Error scanning directory {}: {}", path.display(), e));
+                }
+            } else if metadata.is_file() {
+                // Process file
+                let file_info = FileInfo {
+                    path: path.to_string_lossy().to_string(),
+                    name: path.file_name()
+                        .unwrap_or_default()
+                        .to_string_lossy()
+                        .to_string(),
+                    size: metadata.len(),
+                    modified: metadata.modified()
+                        .unwrap_or(std::time::SystemTime::now())
+                        .into(),
+                    created: metadata.created()
+                        .unwrap_or(std::time::SystemTime::now())
+                        .into(),
+                    is_directory: false,
+                    extension: path.extension()
+                        .and_then(|e| e.to_str())
+                        .map(|e| e.to_string()),
+                    hash: None,
+                };
+                
+                // Update progress
+                {
+                    let mut prog = progress.lock().await;
+                    prog.total_files += 1;
+                    prog.processed_files += 1;
+                    prog.total_size += metadata.len();
+                }
+                
+                // Send file info
+                if tx.send(file_info).await.is_err() {
+                    break; // Receiver dropped
                 }
             }
         }
         
-        Ok(files)
+        Ok(())
     }
     
     /// Find duplicate files
@@ -111,12 +208,14 @@ impl DiskAnalyzer {
         Ok(duplicate_groups)
     }
     
-    /// Calculate hash for a file
+    /// Calculate SHA256 hash for a file
     async fn calculate_file_hash(&self, path: &str) -> Result<String> {
-        let file = File::open(path).await?;
-        let mut reader = BufReader::new(file);
-        let mut hasher = Hasher::new();
-        let mut buffer = vec![0; 8192];
+        const BUFFER_SIZE: usize = 65536; // 64KB buffer
+        
+        let file = fs::File::open(path).await?;
+        let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
+        let mut hasher = Sha256::new();
+        let mut buffer = vec![0u8; BUFFER_SIZE];
         
         loop {
             let bytes_read = reader.read(&mut buffer).await?;
@@ -126,6 +225,8 @@ impl DiskAnalyzer {
             hasher.update(&buffer[..bytes_read]);
         }
         
-        Ok(hasher.finalize().to_hex().to_string())
+        let result = hasher.finalize();
+        Ok(format!("{:x}", result))
     }
+    
 }

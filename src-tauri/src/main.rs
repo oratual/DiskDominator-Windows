@@ -20,6 +20,7 @@ fn main() {
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             commands::file_commands::scan_disk,
+            commands::file_commands::get_scan_progress,
             commands::file_commands::get_disk_info,
             commands::file_commands::get_large_files,
             commands::file_commands::find_duplicates,

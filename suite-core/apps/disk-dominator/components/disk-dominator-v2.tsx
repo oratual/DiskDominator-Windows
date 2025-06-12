@@ -7,6 +7,8 @@ import DuplicatesView from "./views/duplicates-view"
 import BigFilesView from "./views/big-files-view"
 import OrganizeView from "./views/organize-view"
 import DiskStatusView from "./views/disk-status-view"
+import DiskStatusViewReal from "./views/disk-status-view-real"
+import { useTauri } from "@/hooks/use-tauri"
 import UserMenu from "./fixed-user-menu"
 import UserProfileButton from "./user-profile-button"
 import HomeView from "./views/home-view"
@@ -18,6 +20,7 @@ export default function DiskDominatorV2() {
   const [activeTab, setActiveTab] = useState("duplicates")
   const { resolvedTheme } = useTheme()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const isTauri = useTauri()
 
   // Theme detection
   const isDark = resolvedTheme === "dark"
@@ -218,7 +221,7 @@ export default function DiskDominatorV2() {
       >
         <div className="h-full overflow-auto">
           {activeTab === "home" && <HomeView />}
-          {activeTab === "analyze" && <DiskStatusView />}
+          {activeTab === "analyze" && (isTauri ? <DiskStatusViewReal /> : <DiskStatusView />)}
           {activeTab === "duplicates" && <DuplicatesView />}
           {activeTab === "bigfiles" && <BigFilesView />}
           {activeTab === "organize" && <OrganizeView />}

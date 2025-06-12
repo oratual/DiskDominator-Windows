@@ -1,0 +1,60 @@
+# Log de Debug: ERR_NETWORK_ACCESS_DENIED
+Fecha: 12 de Junio 2025
+Problema: No se puede acceder desde Windows a servidor Next.js en WSL2
+
+## Estado Inicial
+- Servidor corriendo en puerto 3002
+- Configurado con -H 0.0.0.0
+- IP Tailscale WSL: 100.96.251.13
+- Error: ERR_NETWORK_ACCESS_DENIED
+
+## Diagnóstico Inicial
+1. WSL versión: 2.5.7.0 (soporta networkingMode=mirrored)
+2. Servidor Next.js binding a 0.0.0.0:3002
+3. IP Tailscale funciona pero da ERR_NETWORK_ACCESS_DENIED
+
+## Posibles Causas (según investigación):
+1. WSL2 usa NAT por defecto (no mirrored)
+2. Windows Firewall bloqueando puerto 3002
+3. Falta port forwarding de WSL2 a Windows
+
+## Plan de Acción (documentar antes de ejecutar):
+1. Verificar si .wslconfig tiene networkingMode=mirrored
+2. Si no, crear configuración correcta
+3. Verificar firewall de Windows
+4. Probar solución más simple primero
+
+## Acciones y Resultados
+
+### Acción 1: Verificar configuración WSL2
+Según CLAUDE.md, debe existir .wslconfig con:
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Este modo elimina problemas de NAT compartiendo IP con Windows.
+
+### Plan: Crear script para verificar/aplicar configuración
+1. Crear script que verifique .wslconfig en Windows
+2. Si no existe o falta networkingMode, crearlo
+3. Reiniciar WSL2
+4. Probar de nuevo
+
+### Solución Implementada:
+Creados 2 archivos:
+1. fix-wsl-networking.ps1 - Script que configura networkingMode=mirrored
+2. FIX-NETWORK-ACCESS.bat - Launcher fácil desde Windows
+
+### Instrucciones para el usuario:
+1. En Windows Explorer, ir a K:\_Glados\DiskDominator\
+2. Doble clic en FIX-NETWORK-ACCESS.bat
+3. Seguir las instrucciones en pantalla
+4. Reiniciar WSL con: wsl --shutdown
+5. Volver a WSL y ejecutar: npm run dev
+6. Acceder desde Windows a: http://localhost:3000
+
+### Por qué funciona:
+- networkingMode=mirrored hace que WSL2 comparta la IP de Windows
+- Elimina problemas de NAT y firewall
+- localhost funciona directamente sin port forwarding

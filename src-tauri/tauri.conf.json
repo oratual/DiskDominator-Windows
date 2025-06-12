@@ -38,25 +38,15 @@
       "active": true,
       "category": "DeveloperTool",
       "copyright": "© 2025 DiskDominator Suite",
-      "deb": {
-        "depends": []
-      },
       "externalBin": [],
       "icon": [
         "icons/icon.ico"
       ],
       "identifier": "com.diskdominator.suite",
       "longDescription": "DiskDominator is a powerful disk management tool that helps you organize, clean, and optimize your storage with AI-powered assistance.",
-      "macOS": {
-        "entitlements": null,
-        "exceptionDomain": "",
-        "frameworks": [],
-        "providerShortName": null,
-        "signingIdentity": null
-      },
       "resources": [],
       "shortDescription": "Intelligent disk management suite",
-      "targets": "all",
+      "targets": ["msi", "nsis"],
       "windows": {
         "certificateThumbprint": null,
         "digestAlgorithm": "sha256",
