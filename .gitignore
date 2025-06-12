@@ -49,6 +49,25 @@ target/
 Cargo.lock
 **/*.rs.bk
 
+# Logs
+*.log
+
+# Archive and temp
+.archive/
+*.tmp
+*.temp
+*.cache
+
+# Build scripts (archived)
+*.bat
+*.ps1
+*.hta
+
+# Old project structure
+OBSOLETE/
+core-modules/
+build-scripts/
+
 # OS
 .DS_Store
 .DS_Store?

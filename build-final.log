@@ -1,5 +1,0 @@
-
-> disk-dominator@0.1.0 tauri
-> tauri build --target x86_64-pc-windows-gnu
-
-       Error `tauri.conf.json` error on `tauri > bundle > targets`: ["none"] is not valid under any of the schemas listed in the 'anyOf' keyword
