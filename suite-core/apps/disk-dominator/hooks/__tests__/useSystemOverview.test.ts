@@ -1,5 +1,5 @@
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useSystemOverview } from '../useSystemOverview';
+import { useSystemOverview } from '../use-system-overview';
 import * as tauriModule from '../use-tauri';
 
 // Mock the Tauri invoke function
@@ -35,7 +35,8 @@ describe('useSystemOverview', () => {
   });
 
   it('should fetch system overview on mount', async () => {
-    (tauriModule.invoke as jest.Mock).mockResolvedValueOnce(mockSystemOverview);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockResolvedValueOnce(mockSystemOverview);
 
     const { result } = renderHook(() => useSystemOverview());
 
@@ -51,7 +52,8 @@ describe('useSystemOverview', () => {
 
   it('should handle errors gracefully', async () => {
     const mockError = new Error('Failed to fetch');
-    (tauriModule.invoke as jest.Mock).mockRejectedValueOnce(mockError);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockRejectedValueOnce(mockError);
 
     const { result } = renderHook(() => useSystemOverview());
 
@@ -64,7 +66,8 @@ describe('useSystemOverview', () => {
   });
 
   it('should refresh data when refresh is called', async () => {
-    (tauriModule.invoke as jest.Mock)
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke
       .mockResolvedValueOnce(mockSystemOverview)
       .mockResolvedValueOnce({
         ...mockSystemOverview,
@@ -90,7 +93,8 @@ describe('useSystemOverview', () => {
 
   it('should auto-refresh when enabled', async () => {
     jest.useFakeTimers();
-    (tauriModule.invoke as jest.Mock).mockResolvedValue(mockSystemOverview);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockResolvedValue(mockSystemOverview);
 
     const { result } = renderHook(() => useSystemOverview(true));
 
@@ -111,7 +115,8 @@ describe('useSystemOverview', () => {
   });
 
   it('should format disk space correctly', async () => {
-    (tauriModule.invoke as jest.Mock).mockResolvedValueOnce(mockSystemOverview);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockResolvedValueOnce(mockSystemOverview);
 
     const { result } = renderHook(() => useSystemOverview());
 

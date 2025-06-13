@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "types": ["jest", "@types/node"],
+    "lib": ["DOM", "ES2020"]
+  },
+  "include": [
+    "tests/**/*",
+    "suite-core/**/__tests__/**/*",
+    "src-tauri/src/tests/**/*"
+  ]
+}

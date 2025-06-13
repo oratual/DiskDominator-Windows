@@ -40,7 +40,8 @@ describe('useDuplicatesFinder', () => {
   });
 
   it('should find duplicates successfully', async () => {
-    (tauriModule.invoke as jest.Mock).mockResolvedValueOnce(mockDuplicates);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockResolvedValueOnce(mockDuplicates);
 
     const { result } = renderHook(() => useDuplicatesFinder());
 
@@ -54,7 +55,8 @@ describe('useDuplicatesFinder', () => {
   });
 
   it('should delete duplicates and refresh list', async () => {
-    (tauriModule.invoke as jest.Mock)
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke
       .mockResolvedValueOnce(mockDuplicates) // Initial find
       .mockResolvedValueOnce(true) // Delete operation
       .mockResolvedValueOnce([]); // Refresh after delete
@@ -94,7 +96,8 @@ describe('useDuplicatesFinder', () => {
 
   it('should handle errors during duplicate finding', async () => {
     const mockError = new Error('Scan failed');
-    (tauriModule.invoke as jest.Mock).mockRejectedValueOnce(mockError);
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke.mockRejectedValueOnce(mockError);
 
     const { result } = renderHook(() => useDuplicatesFinder());
 
@@ -109,7 +112,8 @@ describe('useDuplicatesFinder', () => {
 
   it('should handle deletion errors gracefully', async () => {
     const mockError = new Error('Permission denied');
-    (tauriModule.invoke as jest.Mock)
+    const mockInvoke = tauriModule.invoke as jest.Mock;
+    mockInvoke
       .mockResolvedValueOnce(mockDuplicates)
       .mockRejectedValueOnce(mockError);
 

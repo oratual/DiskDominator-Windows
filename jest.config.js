@@ -17,6 +17,9 @@ module.exports = {
     '^.+\\.(ts|tsx)$': ['ts-jest', {
       tsconfig: {
         jsx: 'react',
+        module: 'commonjs',
+        esModuleInterop: true,
+        allowJs: true,
       },
     }],
   },
@@ -75,6 +78,12 @@ module.exports = {
   globals: {
     'ts-jest': {
       isolatedModules: true,
+      tsconfig: {
+        jsx: 'react',
+        module: 'commonjs',
+        esModuleInterop: true,
+        allowJs: true,
+      },
     },
   },
 };

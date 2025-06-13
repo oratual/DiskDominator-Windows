@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::disk_analyzer::*;
+    use crate::commands::file_commands::ScanOptions;
     use tempfile::TempDir;
     use std::fs;
     use std::io::Write;

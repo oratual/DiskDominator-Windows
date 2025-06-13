@@ -4,11 +4,10 @@ mod tests {
     use crate::app_state::AppState;
     use tauri::State;
     use std::sync::Arc;
-    use tokio::sync::RwLock;
 
-    fn create_test_state() -> State<'static, AppState> {
-        let app_state = AppState::new();
-        State::from(Arc::new(app_state))
+    fn create_test_state() -> State<'static, Arc<AppState>> {
+        let app_state = Arc::new(AppState::new());
+        State::from(app_state)
     }
 
     #[tokio::test]
@@ -70,23 +69,24 @@ mod tests {
     }
 
     #[test]
-    fn test_system_summary_calculations() {
-        let summary = SystemSummary {
-            total_space: 1_000_000_000_000, // 1TB
-            used_space: 750_000_000_000,    // 750GB
-            free_space: 250_000_000_000,    // 250GB
-            total_files: 100_000,
-            duplicate_files: 5_000,
-            large_files: 500,
-            last_scan_date: "2025-06-13".to_string(),
+    fn test_disk_summary_calculations() {
+        let disk = DiskSummary {
+            id: "test-disk".to_string(),
+            label: "Test Disk".to_string(),
+            path: "C:\\".to_string(),
+            total: 1_000_000_000_000, // 1TB
+            used: 750_000_000_000,    // 750GB
+            free: 250_000_000_000,    // 250GB
+            percentage: 75.0,
+            file_system: Some("NTFS".to_string()),
+            last_scanned: None,
         };
         
         // Verify percentage calculations
-        let used_percentage = (summary.used_space as f64 / summary.total_space as f64) * 100.0;
-        assert!((used_percentage - 75.0).abs() < 0.01);
+        let calculated_percentage = (disk.used as f64 / disk.total as f64) * 100.0;
+        assert!((calculated_percentage - disk.percentage as f64).abs() < 0.01);
         
-        // Verify duplicate ratio
-        let duplicate_ratio = (summary.duplicate_files as f64 / summary.total_files as f64) * 100.0;
-        assert!((duplicate_ratio - 5.0).abs() < 0.01);
+        // Verify space calculations
+        assert_eq!(disk.used + disk.free, disk.total);
     }
 }
