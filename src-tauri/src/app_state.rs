@@ -21,6 +21,7 @@ pub struct SimpleStorage {
 pub struct AppState {
     pub storage: Arc<RwLock<SimpleStorage>>,
     pub current_analyzer: Arc<RwLock<Option<crate::disk_analyzer::DiskAnalyzer>>>,
+    pub websocket_manager: Arc<crate::websocket::WebSocketManager>,
     // Commented out until modules are available:
     // pub auth: Arc<RwLock<AuthModule>>,
     // pub i18n: Arc<RwLock<I18nModule>>,
@@ -30,9 +31,11 @@ pub struct AppState {
 
 impl AppState {
     pub fn new() -> Self {
+        let websocket_manager = Arc::new(crate::websocket::WebSocketManager::new());
         Self {
             storage: Arc::new(RwLock::new(SimpleStorage::default())),
             current_analyzer: Arc::new(RwLock::new(None)),
+            websocket_manager,
         }
     }
     

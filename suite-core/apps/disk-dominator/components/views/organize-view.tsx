@@ -4,6 +4,9 @@ import React from "react";
 import type { FileItem } from "@/components/file-explorer"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import { useOrganization } from "@/hooks/useOrganization"
+import { useOrganizationPlan } from "@/hooks/useOrganizationPlan"
+import { useOrganizationPreview } from "@/hooks/useOrganizationPreview"
 import {
   MessageSquare,
   ArrowRight,
@@ -20,68 +23,99 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Progress } from "@/components/ui/progress"
+import { Separator } from "@/components/ui/separator"
 import FileExplorer from "@/components/file-explorer"
 
-// Datos de ejemplo para la vista de organización
-const organizationSuggestions = [
+// Organization rules templates
+const defaultRules = [
   {
-    id: 1,
-    title: "Mover archivos de descargas",
-    description: "Mover archivos PDF de descargas a documentos",
-    fromPath: "C:/Users/Usuario/Downloads",
-    toPath: "C:/Users/Usuario/Documents",
-    fileCount: 24,
-    totalSize: "45.2 MB",
-    confidence: 85,
+    id: 'pdf-rule',
+    name: 'Organize PDF files',
+    enabled: true,
+    priority: 1,
+    condition: {
+      condition_type: 'extension',
+      operator: 'equals',
+      value: 'pdf',
+    },
+    action: {
+      action_type: 'move',
+      destination: 'Documents/PDFs',
+    },
+    scope: {
+      paths: ['Downloads'],
+      recursive: true,
+      include_hidden: false,
+    },
   },
   {
-    id: 2,
-    title: "Organizar fotos por fecha",
-    description: "Agrupar fotos en carpetas por mes",
-    fromPath: "C:/Users/Usuario/Pictures",
-    toPath: "C:/Users/Usuario/Pictures/Organized",
-    fileCount: 156,
-    totalSize: "1.2 GB",
-    confidence: 92,
-  },
-  {
-    id: 3,
-    title: "Archivos duplicados",
-    description: "Eliminar copias duplicadas en documentos",
-    fromPath: "C:/Users/Usuario/Documents",
-    toPath: "Papelera",
-    fileCount: 18,
-    totalSize: "240 MB",
-    confidence: 78,
-    isDelete: true,
-  },
-  {
-    id: 4,
-    title: "Archivos temporales",
-    description: "Eliminar archivos temporales antiguos",
-    fromPath: "C:/Users/Usuario/AppData/Temp",
-    toPath: "Papelera",
-    fileCount: 342,
-    totalSize: "560 MB",
-    confidence: 95,
-    isDelete: true,
-  },
-  {
-    id: 5,
-    title: "Organizar documentos de trabajo",
-    description: "Mover documentos de trabajo a carpeta de proyectos",
-    fromPath: "C:/Users/Usuario/Desktop",
-    toPath: "C:/Users/Usuario/Documents/Projects",
-    fileCount: 37,
-    totalSize: "120 MB",
-    confidence: 88,
+    id: 'image-rule',
+    name: 'Organize image files',
+    enabled: true,
+    priority: 2,
+    condition: {
+      condition_type: 'extension',
+      operator: 'equals',
+      value: 'jpg|jpeg|png|gif',
+    },
+    action: {
+      action_type: 'move',
+      destination: 'Pictures/Organized',
+    },
+    scope: {
+      paths: ['Downloads', 'Desktop'],
+      recursive: true,
+      include_hidden: false,
+    },
   },
 ]
 
 export default function OrganizeView() {
   const [selectedTab, setSelectedTab] = useState("explore")
   const [selectedLayout, setSelectedLayout] = useState("single") // "single", "horizontal", "vertical", "grid"
-  const [selectedSuggestion, setSelectedSuggestion] = useState<number | null>(null)
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([])
+  const [aiPrompt, setAiPrompt] = useState('')
+  const [showRuleConfig, setShowRuleConfig] = useState(false)
+  
+  // Organization hooks
+  const {
+    analyzing,
+    analysis,
+    selectedSuggestions,
+    error: orgError,
+    getSuggestions,
+    toggleSuggestion,
+    selectAllSuggestions,
+    clearSuggestions,
+    getSelectedSuggestions,
+  } = useOrganization()
+  
+  const {
+    creating,
+    executing,
+    currentPlan,
+    currentExecution,
+    error: planError,
+    createPlan,
+    executePlan,
+    rollbackPlan,
+    clearPlan,
+    formatDuration,
+    formatFileSize,
+  } = useOrganizationPlan()
+  
+  const {
+    loading: previewLoading,
+    preview,
+    error: previewError,
+    generatePreview,
+    getChangeSummary,
+    hasChanges,
+    getImpactLevel,
+    getImpactColor,
+  } = useOrganizationPreview()
 
   // Estado para el panel de AI Assistant
   const [chatWidth, setChatWidth] = useState(300)
@@ -163,6 +197,9 @@ export default function OrganizeView() {
   // Handle selection changes from FileExplorer - memoizado para evitar recreaciones
   const handleSelectionChange = useCallback((items: FileItem[]) => {
     setSelectedItems(items)
+    // Update selected paths for organization
+    const paths = items.map(item => item.path)
+    setSelectedPaths(paths)
   }, [])
 
   // Show notification
@@ -222,6 +259,95 @@ export default function OrganizeView() {
 
     // In a real app, we would actually perform the operation here
   }
+
+  // Organization workflow functions
+  const handleAnalyzeSelected = useCallback(async () => {
+    if (selectedPaths.length === 0) {
+      showNotification("Selecciona archivos o carpetas para analizar", "error")
+      return
+    }
+
+    try {
+      await getSuggestions(selectedPaths)
+      setSelectedTab("visual")
+    } catch (error) {
+      showNotification("Error al analizar los archivos seleccionados", "error")
+    }
+  }, [selectedPaths, getSuggestions])
+
+  const handleCreatePlan = useCallback(async () => {
+    const selected = getSelectedSuggestions()
+    if (selected.length === 0) {
+      showNotification("Selecciona al menos una sugerencia", "error")
+      return
+    }
+
+    try {
+      const plan = await createPlan(
+        "Plan de Organización",
+        `Plan generado automáticamente con ${selected.length} operaciones`,
+        defaultRules,
+        aiPrompt.length > 0,
+        aiPrompt || undefined,
+        selectedPaths
+      )
+      
+      if (plan) {
+        await generatePreview(plan.id)
+        showNotification("Plan creado exitosamente", "success")
+      }
+    } catch (error) {
+      showNotification("Error al crear el plan de organización", "error")
+    }
+  }, [getSelectedSuggestions, createPlan, aiPrompt, selectedPaths, generatePreview])
+
+  const handleExecutePlan = useCallback(async (dryRun = false) => {
+    if (!currentPlan) {
+      showNotification("No hay plan para ejecutar", "error")
+      return
+    }
+
+    try {
+      const execution = await executePlan(currentPlan.id, {
+        dryRun,
+        createBackup: true,
+      })
+      
+      if (execution) {
+        showNotification(
+          dryRun ? "Simulación completada" : "Ejecución iniciada",
+          "success"
+        )
+      }
+    } catch (error) {
+      showNotification("Error al ejecutar el plan", "error")
+    }
+  }, [currentPlan, executePlan])
+
+  const handleRollback = useCallback(async () => {
+    if (!currentPlan) return
+
+    try {
+      const success = await rollbackPlan(currentPlan.id)
+      if (success) {
+        showNotification("Cambios revertidos exitosamente", "success")
+      }
+    } catch (error) {
+      showNotification("Error al revertir los cambios", "error")
+    }
+  }, [currentPlan, rollbackPlan])
+
+  const handleSendAIPrompt = useCallback(async () => {
+    if (!aiPrompt.trim()) return
+
+    try {
+      await handleAnalyzeSelected()
+      // Here we would integrate with AI suggestions based on the prompt
+      showNotification("Analizando con IA...", "success")
+    } catch (error) {
+      showNotification("Error al procesar la consulta de IA", "error")
+    }
+  }, [aiPrompt, handleAnalyzeSelected])
 
   // Manejo del redimensionamiento del chat
   useEffect(() => {
@@ -615,15 +741,48 @@ export default function OrganizeView() {
                 <Input
                   type="text"
                   placeholder="Escribe tu instrucción aquí..."
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSendAIPrompt()}
                   className="flex-1 bg-transparent outline-none text-sm border-none dark:text-gray-100 dark:placeholder-gray-400"
+                  disabled={analyzing}
                 />
-                <button className="ml-2 text-blue-600 dark:text-blue-400">
+                <button 
+                  className="ml-2 text-blue-600 dark:text-blue-400 disabled:opacity-50"
+                  onClick={handleSendAIPrompt}
+                  disabled={analyzing || !aiPrompt.trim()}
+                >
                   <MessageSquare size={20} />
                 </button>
               </div>
               <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                Sugerencia: Puedes especificar fechas, tamaños o tipos de archivo en tus instrucciones
+                {analyzing ? "Analizando..." : "Sugerencia: Puedes especificar fechas, tamaños o tipos de archivo en tus instrucciones"}
               </div>
+              
+              {/* Quick action buttons */}
+              {selectedPaths.length > 0 && (
+                <div className="mt-3 flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleAnalyzeSelected}
+                    disabled={analyzing}
+                    className="text-xs"
+                  >
+                    {analyzing ? "Analizando..." : "Analizar selección"}
+                  </Button>
+                  {analysis && analysis.suggestions.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedTab("visual")}
+                      className="text-xs"
+                    >
+                      Ver sugerencias
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </>
         )}
@@ -728,13 +887,19 @@ export default function OrganizeView() {
                 >
                   Resumen
                 </TabsTrigger>
-                <Button className="bg-[#7928CA] hover:bg-[#6B21A8] text-white text-sm h-8 dark:bg-purple-700 dark:hover:bg-purple-800 plan-confirmation-button">
+                <Button 
+                  className="bg-[#7928CA] hover:bg-[#6B21A8] text-white text-sm h-8 dark:bg-purple-700 dark:hover:bg-purple-800 plan-confirmation-button"
+                  onClick={() => handleExecutePlan(false)}
+                  disabled={!currentPlan || executing || currentPlan.status !== 'ready'}
+                >
                   <Check size={16} className="mr-1" />
-                  Confirmar Plan
+                  {executing ? "Ejecutando..." : "Confirmar Plan"}
                 </Button>
                 <Button
                   variant="outline"
                   className="ml-3 text-sm h-8 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700 plan-cancel-button"
+                  onClick={clearPlan}
+                  disabled={executing}
                 >
                   <X size={16} className="mr-1" />
                   Cancelar Plan
@@ -975,58 +1140,180 @@ export default function OrganizeView() {
             >
               <div className="h-full overflow-auto">
                 <div className="p-6">
-                  <h2 className="text-lg font-medium mb-4 dark:text-gray-100">Cambios propuestos</h2>
-                  <Card className="mb-6 p-4 border-l-4 border-blue-500 bg-blue-50 dark:bg-blue-900/20 dark:border-blue-700">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-3">
-                        <MessageSquare size={20} className="text-blue-600 dark:text-blue-400" />
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-lg font-medium dark:text-gray-100">Sugerencias de organización</h2>
+                    {analysis && (
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={selectAllSuggestions}
+                          disabled={creating}
+                        >
+                          Seleccionar todas
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={clearSuggestions}
+                          disabled={creating}
+                        >
+                          Limpiar selección
+                        </Button>
                       </div>
-                      <div>
-                        <h3 className="font-medium text-blue-800 mb-2 dark:text-blue-300">
-                          Plan de reorganización de proyectos Unreal Engine
-                        </h3>
-                        <p className="text-sm dark:text-gray-300">
-                          Basado en tu solicitud, he analizado tus proyectos de Unreal Engine y he preparado un plan
-                          para reorganizarlos según su antigüedad. Moveré los{" "}
-                          <strong className="dark:text-blue-200">4 proyectos con más de 3 años de antigüedad</strong>{" "}
-                          (UE5_RPG de 2019, UE4_Shooter de 2020, UE4_RTS de
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
+                    )}
+                  </div>
 
-                  <Card className="mb-6 p-4 border-l-4 border-green-500 bg-green-50 dark:bg-green-900/20 dark:border-green-700">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-3">
-                        <MessageSquare size={20} className="text-green-600 dark:text-green-400" />
-                      </div>
-                      <div>
-                        <h3 className="font-medium text-green-800 mb-2 dark:text-green-300">
-                          Mover proyectos antiguos a la carpeta "antiguo unreal"
-                        </h3>
-                        <p className="text-sm dark:text-gray-300">
-                          Moveré los proyectos UE5_RPG, UE4_Shooter, UE4_RTS y UE4_Strategy a la carpeta "E:/antiguo
-                          unreal".
-                        </p>
-                      </div>
-                    </div>
-                  </Card>
+                  {/* Error states */}
+                  {orgError && (
+                    <Card className="mb-4 p-4 border-l-4 border-red-500 bg-red-50 dark:bg-red-900/20 dark:border-red-700">
+                      <p className="text-sm text-red-700 dark:text-red-300">{orgError}</p>
+                    </Card>
+                  )}
 
-                  <Card className="mb-6 p-4 border-l-4 border-purple-500 bg-purple-50 dark:bg-purple-900/20 dark:border-purple-700">
-                    <div className="flex items-start">
-                      <div className="flex-shrink-0 mr-3">
-                        <MessageSquare size={20} className="text-purple-600 dark:text-purple-400" />
+                  {/* Loading state */}
+                  {analyzing && (
+                    <Card className="mb-4 p-4">
+                      <div className="flex items-center">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                        <p className="text-sm">Analizando archivos y generando sugerencias...</p>
                       </div>
-                      <div>
-                        <h3 className="font-medium text-purple-800 mb-2 dark:text-purple-300">
-                          Mover proyectos recientes a la carpeta "J:/proyectos/unreal"
-                        </h3>
-                        <p className="text-sm dark:text-gray-300">
-                          Moveré los proyectos UE5_FPS, UE5_MMO y UE5_Sandbox a la carpeta "J:/proyectos/unreal".
-                        </p>
-                      </div>
+                    </Card>
+                  )}
+
+                  {/* Organization suggestions */}
+                  {analysis && analysis.suggestions.length > 0 ? (
+                    <div className="space-y-4">
+                      {analysis.suggestions.map((suggestion) => (
+                        <Card
+                          key={suggestion.id}
+                          className={`p-4 border-l-4 cursor-pointer transition-all ${
+                            selectedSuggestions.includes(suggestion.id)
+                              ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                              : 'border-gray-200 hover:border-gray-300 dark:border-gray-700'
+                          }`}
+                          onClick={() => toggleSuggestion(suggestion.id)}
+                        >
+                          <div className="flex items-start">
+                            <div className="flex-shrink-0 mr-3">
+                              <input
+                                type="checkbox"
+                                checked={selectedSuggestions.includes(suggestion.id)}
+                                onChange={() => toggleSuggestion(suggestion.id)}
+                                className="mt-1"
+                              />
+                            </div>
+                            <div className="flex-1">
+                              <div className="flex items-center justify-between mb-2">
+                                <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                                  {suggestion.title}
+                                </h3>
+                                <Badge variant="outline" className="text-xs">
+                                  {Math.round(suggestion.confidence * 100)}% confianza
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                                {suggestion.description}
+                              </p>
+                              <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                                <span className="mr-4">
+                                  Tiempo estimado: {formatDuration(suggestion.estimated_time)}
+                                </span>
+                                <span>
+                                  Archivos afectados: {suggestion.affected_files.length}
+                                </span>
+                              </div>
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 italic">
+                                {suggestion.reason}
+                              </p>
+                            </div>
+                          </div>
+                        </Card>
+                      ))}
+
+                      {/* Create plan button */}
+                      {selectedSuggestions.length > 0 && (
+                        <Card className="p-4 bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="font-medium text-green-800 dark:text-green-300 mb-1">
+                                Crear plan de organización
+                              </h3>
+                              <p className="text-sm text-green-600 dark:text-green-400">
+                                {selectedSuggestions.length} operaciones seleccionadas
+                              </p>
+                            </div>
+                            <Button
+                              onClick={handleCreatePlan}
+                              disabled={creating}
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                            >
+                              {creating ? "Creando..." : "Crear Plan"}
+                            </Button>
+                          </div>
+                        </Card>
+                      )}
                     </div>
-                  </Card>
+                  ) : analysis && !analyzing ? (
+                    <Card className="p-8 text-center">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        No se encontraron sugerencias
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Los archivos seleccionados ya están bien organizados o no se detectaron patrones de mejora.
+                      </p>
+                      <Button variant="outline" onClick={() => setSelectedTab("explore")}>
+                        Seleccionar otros archivos
+                      </Button>
+                    </Card>
+                  ) : !analyzing && (
+                    <Card className="p-8 text-center">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        Selecciona archivos para organizar
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Usa el explorador de archivos para seleccionar carpetas o archivos que quieras organizar.
+                      </p>
+                      <Button variant="outline" onClick={() => setSelectedTab("explore")}>
+                        Ir al explorador
+                      </Button>
+                    </Card>
+                  )}
+
+                  {/* Organization insights */}
+                  {analysis && analysis.insights && (
+                    <Card className="mt-6 p-4">
+                      <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                        Análisis de la estructura
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        {analysis.insights.disorganized_folders.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-yellow-700 dark:text-yellow-300 mb-1">
+                              Carpetas desorganizadas
+                            </h4>
+                            <ul className="text-gray-600 dark:text-gray-400 space-y-1">
+                              {analysis.insights.disorganized_folders.map((folder, index) => (
+                                <li key={index} className="truncate">{folder}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {analysis.insights.unused_directories.length > 0 && (
+                          <div>
+                            <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-1">
+                              Directorios no utilizados
+                            </h4>
+                            <ul className="text-gray-600 dark:text-gray-400 space-y-1">
+                              {analysis.insights.unused_directories.map((dir, index) => (
+                                <li key={index} className="truncate">{dir}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </Card>
+                  )}
                 </div>
               </div>
             </TabsContent>
@@ -1039,21 +1326,202 @@ export default function OrganizeView() {
               <div className="h-full overflow-auto">
                 <div className="p-6">
                   <h2 className="text-lg font-medium mb-4 dark:text-gray-100">Resumen del plan</h2>
-                  <p className="text-sm dark:text-gray-300">
-                    Este plan reorganizará tus proyectos de Unreal Engine según su antigüedad. Se moverán 4 proyectos
-                    antiguos a la carpeta "E:/antiguo unreal" y 3 proyectos recientes a la carpeta
-                    "J:/proyectos/unreal".
-                  </p>
-                  <ul className="list-disc pl-5 mt-4 dark:text-gray-300">
-                    <li>
-                      <span className="font-medium dark:text-gray-200">Proyectos antiguos (más de 3 años):</span>{" "}
-                      UE5_RPG, UE4_Shooter, UE4_RTS, UE4_Strategy
-                    </li>
-                    <li>
-                      <span className="font-medium dark:text-gray-200">Proyectos recientes (menos de 3 años):</span>{" "}
-                      UE5_FPS, UE5_MMO, UE5_Sandbox
-                    </li>
-                  </ul>
+                  
+                  {currentPlan ? (
+                    <div className="space-y-6">
+                      {/* Plan overview */}
+                      <Card className="p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
+                              {currentPlan.name}
+                            </h3>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              {currentPlan.description}
+                            </p>
+                          </div>
+                          <Badge className={`
+                            ${currentPlan.status === 'ready' ? 'bg-green-100 text-green-700' : ''}
+                            ${currentPlan.status === 'executing' ? 'bg-blue-100 text-blue-700' : ''}
+                            ${currentPlan.status === 'completed' ? 'bg-gray-100 text-gray-700' : ''}
+                            ${currentPlan.status === 'failed' ? 'bg-red-100 text-red-700' : ''}
+                          `}>
+                            {currentPlan.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">Operaciones:</span>
+                            <p className="text-gray-600 dark:text-gray-400">{currentPlan.operations.length}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">Archivos:</span>
+                            <p className="text-gray-600 dark:text-gray-400">{currentPlan.metadata.total_files}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">Tamaño:</span>
+                            <p className="text-gray-600 dark:text-gray-400">{formatFileSize(currentPlan.metadata.total_size)}</p>
+                          </div>
+                          <div>
+                            <span className="font-medium text-gray-900 dark:text-gray-100">Tiempo estimado:</span>
+                            <p className="text-gray-600 dark:text-gray-400">{formatDuration(currentPlan.metadata.estimated_duration)}</p>
+                          </div>
+                        </div>
+                      </Card>
+
+                      {/* Preview section */}
+                      {preview && (
+                        <Card className="p-4">
+                          <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                            Vista previa de cambios
+                          </h3>
+                          
+                          {previewLoading && (
+                            <div className="flex items-center">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                              <p className="text-sm">Generando vista previa...</p>
+                            </div>
+                          )}
+                          
+                          {hasChanges() && (
+                            <div className={`p-3 rounded-lg border ${getImpactColor()}`}>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="font-medium">Impacto: {getImpactLevel()}</span>
+                                <span className="text-sm">{getChangeSummary()?.total} cambios</span>
+                              </div>
+                              
+                              {getChangeSummary() && (
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                                  {getChangeSummary()!.creates > 0 && (
+                                    <span>Crear: {getChangeSummary()!.creates}</span>
+                                  )}
+                                  {getChangeSummary()!.moves > 0 && (
+                                    <span>Mover: {getChangeSummary()!.moves}</span>
+                                  )}
+                                  {getChangeSummary()!.renames > 0 && (
+                                    <span>Renombrar: {getChangeSummary()!.renames}</span>
+                                  )}
+                                  {getChangeSummary()!.deletes > 0 && (
+                                    <span>Eliminar: {getChangeSummary()!.deletes}</span>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </Card>
+                      )}
+
+                      {/* Execution controls */}
+                      <Card className="p-4">
+                        <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                          Controles de ejecución
+                        </h3>
+                        
+                        {currentExecution && currentExecution.status === 'running' ? (
+                          <div className="space-y-3">
+                            <div>
+                              <div className="flex justify-between text-sm mb-1">
+                                <span>Progreso</span>
+                                <span>{Math.round(currentExecution.progress.percentage)}%</span>
+                              </div>
+                              <Progress value={currentExecution.progress.percentage} className="w-full" />
+                            </div>
+                            
+                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                              Operación {currentExecution.progress.current_operation} de {currentExecution.progress.total_operations}
+                              {currentExecution.progress.current_file && (
+                                <span className="block">Procesando: {currentExecution.progress.current_file}</span>
+                              )}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="flex gap-3">
+                            <Button
+                              onClick={() => handleExecutePlan(true)}
+                              disabled={executing || currentPlan.status !== 'ready'}
+                              variant="outline"
+                            >
+                              Simular ejecución
+                            </Button>
+                            
+                            <Button
+                              onClick={() => handleExecutePlan(false)}
+                              disabled={executing || currentPlan.status !== 'ready'}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                            >
+                              {executing ? "Ejecutando..." : "Ejecutar plan"}
+                            </Button>
+                            
+                            {currentExecution?.rollback_available && (
+                              <Button
+                                onClick={handleRollback}
+                                disabled={executing}
+                                variant="destructive"
+                              >
+                                Revertir cambios
+                              </Button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {planError && (
+                          <p className="text-sm text-red-600 dark:text-red-400 mt-2">{planError}</p>
+                        )}
+                      </Card>
+
+                      {/* Execution summary */}
+                      {currentExecution?.summary && (
+                        <Card className="p-4">
+                          <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                            Resumen de ejecución
+                          </h3>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">Archivos movidos:</span>
+                              <p className="text-gray-600 dark:text-gray-400">{currentExecution.summary.files_moved}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">Renombrados:</span>
+                              <p className="text-gray-600 dark:text-gray-400">{currentExecution.summary.files_renamed}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">Eliminados:</span>
+                              <p className="text-gray-600 dark:text-gray-400">{currentExecution.summary.files_deleted}</p>
+                            </div>
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">Espacio liberado:</span>
+                              <p className="text-gray-600 dark:text-gray-400">{formatFileSize(currentExecution.summary.space_saved)}</p>
+                            </div>
+                          </div>
+                          
+                          {currentExecution.summary.errors.length > 0 && (
+                            <div className="mt-4">
+                              <h4 className="font-medium text-red-700 dark:text-red-300 mb-2">Errores:</h4>
+                              <ul className="text-sm text-red-600 dark:text-red-400 space-y-1">
+                                {currentExecution.summary.errors.map((error, index) => (
+                                  <li key={index}>{error}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </Card>
+                      )}
+                    </div>
+                  ) : (
+                    <Card className="p-8 text-center">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+                        No hay plan de organización
+                      </h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Crea un plan de organización seleccionando archivos y generando sugerencias.
+                      </p>
+                      <Button variant="outline" onClick={() => setSelectedTab("explore")}>
+                        Empezar organización
+                      </Button>
+                    </Card>
+                  )}
                 </div>
               </div>
             </TabsContent>

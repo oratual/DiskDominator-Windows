@@ -1,0 +1,278 @@
+/* Accessibility styles for DiskDominator User Module */
+
+/* Text Size Variants */
+html[data-text-size="small"] {
+  font-size: 14px;
+}
+
+html[data-text-size="normal"] {
+  font-size: 16px;
+}
+
+html[data-text-size="large"] {
+  font-size: 18px;
+}
+
+/* High Contrast Mode */
+html.high-contrast {
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 0%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 0%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 90%;
+  --secondary-foreground: 0 0% 0%;
+  --muted: 0 0% 90%;
+  --muted-foreground: 0 0% 20%;
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 0%;
+  --destructive: 0 85% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 20%;
+  --input: 0 0% 90%;
+  --ring: 0 0% 0%;
+  --radius: 0.5rem;
+}
+
+html.high-contrast * {
+  border-color: hsl(var(--border)) !important;
+}
+
+html.high-contrast .bg-blue-700 {
+  background-color: hsl(var(--primary)) !important;
+}
+
+html.high-contrast .text-blue-600 {
+  color: hsl(var(--primary)) !important;
+}
+
+/* Wide Spacing */
+html.wide-spacing {
+  line-height: 1.8;
+}
+
+html.wide-spacing p {
+  margin-bottom: 1.5rem;
+}
+
+html.wide-spacing .space-y-1 > * + * {
+  margin-top: 0.75rem;
+}
+
+html.wide-spacing .space-y-2 > * + * {
+  margin-top: 1rem;
+}
+
+html.wide-spacing .space-y-4 > * + * {
+  margin-top: 1.5rem;
+}
+
+html.wide-spacing button,
+html.wide-spacing .btn {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
+}
+
+/* Color Filters */
+html.filter-grayscale {
+  filter: grayscale(100%);
+}
+
+html.filter-protanopia {
+  filter: url('#protanopia-filter');
+}
+
+html.filter-deuteranopia {
+  filter: url('#deuteranopia-filter');
+}
+
+html.filter-tritanopia {
+  filter: url('#tritanopia-filter');
+}
+
+/* Motion Reduction */
+html.reduce-motion *,
+html.reduce-motion *::before,
+html.reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Focus Indicators for Accessibility */
+html.high-contrast *:focus {
+  outline: 3px solid hsl(var(--primary));
+  outline-offset: 2px;
+}
+
+/* Ensure text remains readable in all filter modes */
+html.filter-grayscale .text-red-500,
+html.filter-protanopia .text-red-500,
+html.filter-deuteranopia .text-red-500 {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+html.filter-grayscale .text-green-500,
+html.filter-protanopia .text-green-500,
+html.filter-deuteranopia .text-green-500 {
+  font-weight: 700;
+  font-style: italic;
+}
+
+html.filter-tritanopia .text-blue-500,
+html.filter-tritanopia .text-yellow-500 {
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+/* Screen Reader Only Content */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Accessibility Announcer */
+#accessibility-announcer {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+/* User Menu Accessibility Improvements */
+.user-menu-dropdown {
+  border: 2px solid hsl(var(--border));
+}
+
+.user-menu-dropdown [role="menuitem"]:focus {
+  background-color: hsl(var(--accent));
+  outline: none;
+}
+
+/* Readability Menu Animations */
+.readability-menu {
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+.menu-collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.menu-expanded {
+  max-height: 500px;
+  opacity: 1;
+}
+
+.advanced-options {
+  transition: max-height 0.3s ease-in-out, opacity 0.3s ease-in-out;
+  overflow: hidden;
+}
+
+/* Reduce motion for readability menu if preference is set */
+html.reduce-motion .readability-menu,
+html.reduce-motion .advanced-options {
+  transition: none;
+}
+
+html.reduce-motion .menu-collapsed {
+  display: none;
+}
+
+html.reduce-motion .menu-expanded {
+  display: block;
+  max-height: none;
+}
+
+/* High contrast improvements for user interface elements */
+html.high-contrast .user-menu-dropdown {
+  border-width: 3px;
+  border-style: solid;
+}
+
+html.high-contrast [data-radix-dropdown-menu-content] {
+  box-shadow: 0 0 0 3px hsl(var(--border));
+}
+
+html.high-contrast .avatar img {
+  border: 2px solid hsl(var(--border));
+}
+
+/* Keyboard navigation improvements */
+[tabindex="0"]:focus,
+[tabindex="-1"]:focus,
+button:focus,
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}
+
+html.high-contrast [tabindex="0"]:focus,
+html.high-contrast [tabindex="-1"]:focus,
+html.high-contrast button:focus,
+html.high-contrast input:focus,
+html.high-contrast select:focus,
+html.high-contrast textarea:focus {
+  outline: 3px solid hsl(var(--primary));
+  outline-offset: 3px;
+}
+
+/* Color Blindness Filter SVG Definitions */
+/* These would typically be included in your HTML head */
+/*
+<svg style="position: absolute; width: 0; height: 0; overflow: hidden;" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="protanopia-filter">
+      <feColorMatrix type="matrix" values="0.567 0.433 0.000 0.000 0.000
+                                           0.558 0.442 0.000 0.000 0.000
+                                           0.000 0.242 0.758 0.000 0.000
+                                           0.000 0.000 0.000 1.000 0.000"/>
+    </filter>
+    <filter id="deuteranopia-filter">
+      <feColorMatrix type="matrix" values="0.625 0.375 0.000 0.000 0.000
+                                           0.700 0.300 0.000 0.000 0.000
+                                           0.000 0.300 0.700 0.000 0.000
+                                           0.000 0.000 0.000 1.000 0.000"/>
+    </filter>
+    <filter id="tritanopia-filter">
+      <feColorMatrix type="matrix" values="0.950 0.050 0.000 0.000 0.000
+                                           0.000 0.433 0.567 0.000 0.000
+                                           0.000 0.475 0.525 0.000 0.000
+                                           0.000 0.000 0.000 1.000 0.000"/>
+    </filter>
+  </defs>
+</svg>
+*/
+
+/* Print styles for accessibility */
+@media print {
+  html.filter-grayscale,
+  html.filter-protanopia,
+  html.filter-deuteranopia,
+  html.filter-tritanopia {
+    filter: none !important;
+  }
+  
+  html.high-contrast {
+    -webkit-print-color-adjust: exact;
+    color-adjust: exact;
+  }
+}

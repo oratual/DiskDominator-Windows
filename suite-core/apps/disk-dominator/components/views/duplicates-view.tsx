@@ -12,6 +12,9 @@ import { useRouter } from "next/navigation"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { MessageSquare, ArrowRight, ChevronLeft, ChevronRight } from "lucide-react"
+import { useDuplicatesFinder } from "@/hooks/use-duplicates-finder"
+import { useDuplicateSelection } from "@/hooks/useDuplicateSelection"
+import { useDuplicatePreview } from "@/hooks/useDuplicatePreview"
 import {
   Copy,
   Trash2,
@@ -32,6 +35,24 @@ import { Card } from "@/components/ui/card"
 
 // Import the DiskSelector component at the top of the file
 import DiskSelector, { type Disk } from "@/components/disk-selector"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Progress } from "@/components/ui/progress"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+import { Skeleton } from "@/components/ui/skeleton"
 
 interface DuplicatesViewProps {
   params?: {
@@ -72,6 +93,46 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
   ])
   const [userInput, setUserInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  // New states for advanced features
+  const [detectionMethod, setDetectionMethod] = useState<'hash' | 'name' | 'size' | 'name_and_size'>('hash')
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false)
+  const [selectedStrategy, setSelectedStrategy] = useState<'keep-newest' | 'keep-oldest' | 'keep-in-organized' | 'ai-suggestion'>('keep-newest')
+  const [minFileSize, setMinFileSize] = useState<string>('')
+  const [previewFile, setPreviewFile] = useState<string | null>(null)
+  
+  // Use duplicate finder hook
+  const {
+    duplicates,
+    summary,
+    loading: duplicatesLoading,
+    error: duplicatesError,
+    findDuplicates,
+    deleteDuplicatesBatch,
+    formatBytes
+  } = useDuplicatesFinder()
+  
+  // Use duplicate selection hook
+  const {
+    selections,
+    toggleFileSelection,
+    selectAll,
+    applySmartSelection,
+    getSelectedFilesForDeletion,
+    getSelectionStats,
+    isFileSelected,
+    isApplyingStrategy
+  } = useDuplicateSelection(duplicates)
+  
+  // Use duplicate preview hook
+  const {
+    preview,
+    loading: previewLoading,
+    loadPreview,
+    clearPreview,
+    openInExplorer,
+    openFile
+  } = useDuplicatePreview()
 
   // Function to scroll to bottom of messages
   const scrollToBottom = () => {
@@ -156,98 +217,61 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
   useEffect(() => {
     setIsClient(true)
   }, [])
+  
+  // Load duplicates on mount and when filters change
+  useEffect(() => {
+    if (isClient) {
+      const loadDuplicates = async () => {
+        const minSize = minFileSize ? parseSize(minFileSize) : undefined
+        await findDuplicates({
+          disks: selectedDisks,
+          types: selectedType === 'all' ? undefined : [selectedType],
+          min_size: minSize,
+          detection_method: detectionMethod,
+        })
+      }
+      loadDuplicates()
+    }
+  }, [isClient, selectedDisks, selectedType, minFileSize, detectionMethod, findDuplicates])
 
-  // Datos de ejemplo
-  const duplicateItems = [
-    {
-      id: 1,
-      name: "Fotos de vacaciones",
-      type: "folder",
-      count: 2,
-      totalSize: 1.8 * 1024 * 1024 * 1024,
-      fileCount: 124,
-      recoverable: 921.6 * 1024 * 1024,
-      copies: [
-        {
-          id: 101,
-          path: "D:/Fotos/Vacaciones 2023",
-          date: "15/08/2023",
-          size: 1.8 * 1024 * 1024 * 1024,
-          keep: true,
-        },
-        {
-          id: 102,
-          path: "E:/Backup/Fotos/Vacaciones 2023",
-          date: "20/08/2023",
-          size: 1.8 * 1024 * 1024 * 1024,
-          keep: false,
-        },
-      ],
-    },
-    {
-      id: 2,
-      name: "Italia2023.mp4",
-      type: "video",
-      count: 3,
-      totalSize: 3.5 * 1024 * 1024 * 1024,
-      recoverable: 2.3 * 1024 * 1024 * 1024,
-      copies: [
-        {
-          id: 201,
-          path: "D:/Videos/Vacaciones/Italia2023.mp4",
-          date: "12/05/2023",
-          size: 3.5 * 1024 * 1024 * 1024,
-          keep: true,
-        },
-        {
-          id: 202,
-          path: "C:/Users/User/Videos/Italia2023.mp4",
-          date: "15/05/2023",
-          size: 3.5 * 1024 * 1024 * 1024,
-          keep: false,
-        },
-        {
-          id: 203,
-          path: "E:/Backup/Videos/Italia2023.mp4",
-          date: "15/05/2023",
-          size: 3.5 * 1024 * 1024 * 1024,
-          keep: false,
-        },
-      ],
-    },
-    {
-      id: 3,
-      name: "IMG001.jpg",
-      type: "image",
-      count: 3,
-      totalSize: 2.4 * 1024 * 1024,
-      recoverable: 1.6 * 1024 * 1024,
-      copies: [
-        {
-          id: 301,
-          path: "C:/Users/User/Pictures/IMG001.jpg",
-          date: "23/01/2022",
-          size: 2.4 * 1024 * 1024,
-          keep: true,
-        },
-        {
-          id: 302,
-          path: "D:/Photos/Family/IMG001.jpg",
-          date: "23/01/2022",
-          size: 2.4 * 1024 * 1024,
-          keep: false,
-        },
-        {
-          id: 303,
-          path: "E:/Backup/Photos/2022/IMG001.jpg",
-          date: "24/02/2022",
-          size: 2.4 * 1024 * 1024,
-          keep: false,
-        },
-      ],
-    },
-  ]
+  // Convert duplicates to the format expected by the UI
+  const duplicateItems = duplicates.map(group => ({
+    id: group.id,
+    name: group.name,
+    type: group.file_type,
+    count: group.copies.length,
+    totalSize: group.total_size,
+    recoverable: group.recoverable_size,
+    copies: group.copies.map(copy => ({
+      id: copy.id,
+      path: copy.path,
+      date: format(new Date(copy.modified * 1000), 'dd/MM/yyyy', { locale: es }),
+      size: copy.size,
+      keep: isFileSelected(group.id, copy.id, 'keep'),
+      delete: isFileSelected(group.id, copy.id, 'delete'),
+    }))
+  }))
 
+  // Helper function to parse size strings
+  const parseSize = (sizeStr: string): number | undefined => {
+    if (!sizeStr) return undefined
+    const match = sizeStr.match(/^(\d+(?:\.\d+)?)(\s*)(B|KB|MB|GB|TB)?$/i)
+    if (!match) return undefined
+    
+    const value = parseFloat(match[1])
+    const unit = (match[3] || 'B').toUpperCase()
+    
+    const multipliers: Record<string, number> = {
+      'B': 1,
+      'KB': 1024,
+      'MB': 1024 * 1024,
+      'GB': 1024 * 1024 * 1024,
+      'TB': 1024 * 1024 * 1024 * 1024,
+    }
+    
+    return value * (multipliers[unit] || 1)
+  }
+  
   // Add this constant after the duplicateItems declaration
   const availableDisks: Disk[] = [
     { id: "C", label: "Disco C:", path: "C:/", color: "blue", usedSpace: 325, totalSpace: 500 },
@@ -256,16 +280,8 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
     { id: "J", label: "Disco J:", path: "J:/", color: "purple", usedSpace: 400, totalSpace: 1000 },
   ]
 
-  // Import formatSize from utils
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024) return bytes + " B"
-    else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
-    else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB"
-    else return (bytes / (1024 * 1024 * 1024)).toFixed(1) + " GB"
-  }
-
   // Calcular espacio total recuperable
-  const totalRecoverable = duplicateItems.reduce((sum, item) => sum + item.recoverable, 0)
+  const totalRecoverable = summary?.recoverable_size || 0
 
   // Obtener icono basado en el tipo
   const getItemIcon = (type: string) => {
@@ -276,6 +292,12 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
         return <ImageIcon className="text-purple-500" />
       case "video":
         return <FileVideo className="text-red-500" />
+      case "audio":
+        return <File className="text-green-500" />
+      case "document":
+        return <File className="text-orange-500" />
+      case "archive":
+        return <File className="text-yellow-500" />
       default:
         return <File className="text-gray-500" />
     }
@@ -366,18 +388,6 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
   const [isDeleting, setIsDeleting] = useState(false)
   const [deleteCount, setDeleteCount] = useState(0)
   const { toast } = useToast()
-
-  // Mock delete function for demonstration
-  const deleteDuplicatesFn = async (params: { ids: string[] }) => {
-    // Mock deletion
-    return new Promise((resolve) => setTimeout(resolve, 1000))
-  }
-
-  // Initialize data with mock data
-  useEffect(() => {
-    setData(mockData)
-    setInitialDataLoaded(true)
-  }, [isClient])
 
   const columns: ColumnDef<any>[] = [
     {
@@ -741,7 +751,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                 <div className="flex justify-between items-center mb-2">
                   <h3 className="text-sm font-medium dark:text-blue-300">Espacio recuperable</h3>
                   <span className="text-lg font-bold text-blue-700 dark:text-blue-300">
-                    {formatSize(totalRecoverable)}
+                    {formatBytes(totalRecoverable)}
                   </span>
                 </div>
 
@@ -1024,6 +1034,77 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                 </div>
               </Collapsible>
             </div>
+            
+            {/* Detection Method */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <Collapsible title="Método de detección" icon={<Zap size={16} />} defaultOpen={false}>
+                <div className="space-y-3 px-2">
+                  <Select value={detectionMethod} onValueChange={(value: any) => setDetectionMethod(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Seleccionar método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hash">Por contenido (más preciso)</SelectItem>
+                      <SelectItem value="name">Por nombre</SelectItem>
+                      <SelectItem value="size">Por tamaño</SelectItem>
+                      <SelectItem value="name_and_size">Por nombre y tamaño</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {detectionMethod === 'hash' && 'Compara el contenido exacto de los archivos'}
+                    {detectionMethod === 'name' && 'Busca archivos con el mismo nombre'}
+                    {detectionMethod === 'size' && 'Busca archivos del mismo tamaño'}
+                    {detectionMethod === 'name_and_size' && 'Busca archivos con mismo nombre y tamaño'}
+                  </p>
+                </div>
+              </Collapsible>
+            </div>
+            
+            {/* Smart Selection */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <Collapsible title="Selección inteligente" icon={<Zap size={16} className="text-purple-500" />} defaultOpen={false}>
+                <div className="space-y-3 px-2">
+                  <Select value={selectedStrategy} onValueChange={(value: any) => setSelectedStrategy(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Estrategia de selección" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="keep-newest">Conservar más recientes</SelectItem>
+                      <SelectItem value="keep-oldest">Conservar más antiguos</SelectItem>
+                      <SelectItem value="keep-in-organized">Conservar organizados</SelectItem>
+                      <SelectItem value="ai-suggestion">Sugerencia AI</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={() => applySmartSelection(selectedStrategy)}
+                    disabled={isApplyingStrategy || duplicates.length === 0}
+                  >
+                    {isApplyingStrategy ? 'Aplicando...' : 'Aplicar selección'}
+                  </Button>
+                </div>
+              </Collapsible>
+            </div>
+            
+            {/* Minimum File Size Filter */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <Collapsible title="Filtros avanzados" icon={<File size={16} />} defaultOpen={false}>
+                <div className="space-y-3 px-2">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">Tamaño mínimo</label>
+                    <Input
+                      type="text"
+                      placeholder="ej: 1MB, 500KB"
+                      value={minFileSize}
+                      onChange={(e) => setMinFileSize(e.target.value)}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              </Collapsible>
+            </div>
           </div>
         )}
       </div>
@@ -1102,7 +1183,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
             <div>
               <h2 className="text-lg font-medium dark:text-white">Archivos y carpetas duplicados</h2>
               <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                {duplicateItems.length} elementos • {formatSize(totalRecoverable)} recuperables
+                {duplicateItems.length} elementos • {formatBytes(totalRecoverable)} recuperables
               </div>
             </div>
 
@@ -1121,6 +1202,36 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
 
         {/* Lista de duplicados */}
         <div className="flex-1 overflow-auto p-3 min-h-0">
+          {/* Empty State */}
+          {!duplicatesLoading && duplicates.length === 0 && (
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="text-center space-y-4">
+                <div className="w-20 h-20 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto">
+                  <Copy size={40} className="text-gray-400" />
+                </div>
+                <h3 className="text-lg font-medium">No se encontraron duplicados</h3>
+                <p className="text-sm text-gray-500 max-w-md">
+                  Escanea tus discos para encontrar archivos duplicados y liberar espacio.
+                </p>
+                <Button 
+                  onClick={async () => {
+                    // First scan the disks, then find duplicates
+                    await findDuplicates({
+                      disks: selectedDisks,
+                      detection_method: detectionMethod,
+                    })
+                  }}
+                  className="mt-4"
+                >
+                  <Copy className="mr-2" size={16} />
+                  Buscar duplicados
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Duplicates List */}
+          {duplicates.length > 0 && (
           <div className="space-y-3">
             {duplicateItems.map((item) => (
               <Card key={item.id} className="overflow-hidden dark:bg-card dark:border-border">
@@ -1134,7 +1245,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                     <div className="ml-3">
                       <div className="font-medium dark:text-white">{item.name}</div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">
-                        {item.count} copias • {formatSize(item.totalSize)}
+                        {item.count} copias • {formatBytes(item.totalSize)}
                         {item.type === "folder" && ` • ${item.fileCount} archivos`}
                       </div>
                     </div>
@@ -1142,7 +1253,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
 
                   <div className="flex items-center">
                     <span className="text-green-600 dark:text-green-400 mr-3 text-sm">
-                      {formatSize(item.recoverable)} recuperables
+                      {formatBytes(item.recoverable)} recuperables
                     </span>
                     {expandedGroup === item.id ? (
                       <ChevronDown size={20} className="text-gray-500 dark:text-gray-400" />
@@ -1177,7 +1288,7 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                             <div>
                               <div className="font-medium dark:text-white">{copy.path}</div>
                               <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                                Modificado: {copy.date} • {formatSize(copy.size)}
+                                Modificado: {copy.date} • {formatBytes(copy.size)}
                               </div>
                             </div>
                           </div>
@@ -1195,7 +1306,13 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                             </button>
 
                             {!copy.keep && (
-                              <button className="p-1.5 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30">
+                              <button 
+                                className="p-1.5 rounded-full text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  toggleFileSelection(item.id, copy.id, 'delete')
+                                }}
+                              >
                                 <Trash2 size={18} />
                               </button>
                             )}
@@ -1208,13 +1325,14 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
               </Card>
             ))}
           </div>
+          )}
         </div>
 
         {/* Barra de acciones inferior */}
         <div className="bg-card dark:bg-card px-4 py-3 border-t border-border dark:border-border flex items-center justify-between sticky bottom-0 z-10">
           <div className="text-sm flex items-center">
-            <span className="font-medium dark:text-white">7 elementos seleccionados</span>
-            <span className="ml-2 text-gray-500 dark:text-gray-400">({formatSize(totalRecoverable)} recuperables)</span>
+            <span className="font-medium dark:text-white">{getSelectionStats.totalToDelete} elementos seleccionados</span>
+            <span className="ml-2 text-gray-500 dark:text-gray-400">({formatBytes(getSelectionStats.spaceToRecover)} recuperables)</span>
 
             <div className="ml-4 flex items-center">
               <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -1230,15 +1348,93 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
               Deshacer
             </button>
 
-            <button className="px-3 py-1.5 bg-red-600 text-white rounded-md text-sm flex items-center hover:bg-red-700">
+            <Button 
+              variant="destructive"
+              size="sm"
+              className="flex items-center"
+              onClick={() => setShowDeleteConfirmation(true)}
+              disabled={getSelectionStats.totalToDelete === 0}
+            >
               <Trash2 size={16} className="mr-1.5" />
-              Eliminar elementos seleccionados (7)
-            </button>
+              Eliminar elementos seleccionados ({getSelectionStats.totalToDelete})
+            </Button>
           </div>
         </div>
         </>
         )}
       </div>
+      
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirmation} onOpenChange={setShowDeleteConfirmation}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que deseas eliminar {getSelectionStats.totalToDelete} archivos duplicados?
+              Esto liberará {formatBytes(getSelectionStats.spaceToRecover)} de espacio.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteConfirmation(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={async () => {
+                setShowDeleteConfirmation(false)
+                setIsDeleting(true)
+                try {
+                  const filesToDelete = getSelectedFilesForDeletion()
+                  const result = await deleteDuplicatesBatch(filesToDelete)
+                  
+                  toast({
+                    title: "Archivos eliminados",
+                    description: `Se eliminaron ${result.deleted.length} archivos, liberando ${formatBytes(result.space_saved)}`,
+                  })
+                  
+                  if (result.failed.length > 0) {
+                    toast({
+                      title: "Algunos archivos no se pudieron eliminar",
+                      description: `${result.failed.length} archivos no se pudieron eliminar`,
+                      variant: "destructive",
+                    })
+                  }
+                } catch (error) {
+                  toast({
+                    title: "Error al eliminar archivos",
+                    description: error instanceof Error ? error.message : "Error desconocido",
+                    variant: "destructive",
+                  })
+                } finally {
+                  setIsDeleting(false)
+                }
+              }}
+              disabled={isDeleting}
+            >
+              {isDeleting ? "Eliminando..." : "Eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Loading State */}
+      {duplicatesLoading && (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="flex flex-col items-center space-y-4">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+            <p className="text-sm text-muted-foreground">Buscando archivos duplicados...</p>
+          </div>
+        </div>
+      )}
+      
+      {/* Error State */}
+      {duplicatesError && (
+        <Alert variant="destructive" className="m-4">
+          <AlertDescription>
+            Error al buscar duplicados: {duplicatesError}
+          </AlertDescription>
+        </Alert>
+      )}
     </div>
   )
 }

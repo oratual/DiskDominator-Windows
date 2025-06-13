@@ -16,7 +16,7 @@ interface FileSidebarProps {
   setSelectedView: (view: string) => void
   selectedDisks: string[]
   setSelectedDisks: (disks: string[]) => void
-  availableDisks: Disk[]
+  availableDisks: Array<{ name: string; used: number; total: number; percentage: number }>
   minSizeThumb: number
   maxSizeThumb: number
   setMinSizeThumb: (value: number) => void
@@ -92,7 +92,13 @@ export function FileSidebar({
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <DiskSelector
                 title="Discos Seleccionados"
-                disks={availableDisks}
+                disks={availableDisks.map(disk => ({ 
+                  name: disk.name, 
+                  letter: disk.name, 
+                  used: disk.used, 
+                  total: disk.total, 
+                  percentage: disk.percentage 
+                }))}
                 selectedDisks={selectedDisks}
                 onChange={setSelectedDisks}
                 compact={!sidebarExpanded}

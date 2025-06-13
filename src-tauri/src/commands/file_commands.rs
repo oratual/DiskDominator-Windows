@@ -3,7 +3,7 @@ use tauri::State;
 use anyhow::Result;
 use crate::app_state::AppState;
 use crate::file_system::{FileInfo, DiskInfo};
-use crate::disk_analyzer::{DiskAnalyzer, ScanType, DuplicateGroup};
+use crate::disk_analyzer::{DiskAnalyzer, ScanType, DuplicateGroup, ScanConfig, ScanSession};
 // use ai_module::OrganizeRules as AiOrganizeRules;
 // use ai_module::FileOperation as AiFileOperation;
 
@@ -46,14 +46,132 @@ pub async fn get_scan_progress(
     }
 }
 
-/// Scan a disk or directory
+/// Create a new scan session
+#[tauri::command]
+pub async fn create_scan_session(
+    disk_path: String,
+    scan_type: String,
+    exclude_patterns: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
+    
+    let scan_type_enum = match scan_type.as_str() {
+        "quick" => ScanType::Quick,
+        "deep" => ScanType::Deep,
+        "custom" => ScanType::Custom,
+        _ => return Err("Invalid scan type".to_string()),
+    };
+
+    let config = ScanConfig {
+        exclude_patterns,
+        include_hidden: false,
+        follow_symlinks: false,
+        max_depth: None,
+        min_file_size: None,
+        max_file_size: None,
+        calculate_hashes: matches!(scan_type_enum, ScanType::Deep),
+        quick_hash_threshold: 1024 * 1024, // 1MB
+    };
+
+    // Store analyzer for session management
+    {
+        let mut current = state.current_analyzer.write().await;
+        *current = Some(analyzer);
+    }
+
+    let session_id = {
+        let guard = state.current_analyzer.read().await;
+        let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+        analyzer.create_scan_session(disk_path, scan_type_enum, config)
+            .await
+            .map_err(|e| e.to_string())?
+    };
+
+    Ok(session_id)
+}
+
+/// Start a scan session
+#[tauri::command]
+pub async fn start_scan_session(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    analyzer.start_scan_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Pause a scan session
+#[tauri::command]
+pub async fn pause_scan_session(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    analyzer.pause_scan_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Resume a scan session
+#[tauri::command]
+pub async fn resume_scan_session(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    analyzer.resume_scan_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Cancel a scan session
+#[tauri::command]
+pub async fn cancel_scan_session(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    analyzer.cancel_scan_session(&session_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Get scan session info
+#[tauri::command]
+pub async fn get_scan_session(
+    session_id: String,
+    state: State<'_, AppState>,
+) -> Result<Option<ScanSession>, String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    Ok(analyzer.get_scan_session(&session_id).await)
+}
+
+/// Get all active scan sessions
+#[tauri::command]
+pub async fn get_active_scan_sessions(
+    state: State<'_, AppState>,
+) -> Result<std::collections::HashMap<String, ScanSession>, String> {
+    let guard = state.current_analyzer.read().await;
+    let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
+    Ok(analyzer.get_active_sessions().await)
+}
+
+/// Scan a disk or directory (backward compatibility)
 #[tauri::command]
 pub async fn scan_disk(
     path: String,
     options: ScanOptions,
     state: State<'_, AppState>,
 ) -> Result<Vec<FileInfo>, String> {
-    let analyzer = DiskAnalyzer::new();
+    let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
     
     // Store analyzer for progress tracking
     {
@@ -123,7 +241,7 @@ pub async fn get_large_files(
 pub async fn find_duplicates(
     state: State<'_, AppState>,
 ) -> Result<Vec<DuplicateGroup>, String> {
-    let analyzer = DiskAnalyzer::new();
+    let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
     
     // Get all files from stored scan results
     let storage = state.storage.read().await;

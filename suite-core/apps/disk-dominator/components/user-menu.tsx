@@ -14,27 +14,43 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, History, LogOut, Settings, User, Eye, ChevronDown, Check, Sliders } from "lucide-react"
+import { CreditCard, History, LogOut, Settings, User, Eye, ChevronDown, Check, Sliders, Loader2 } from "lucide-react"
 import { useTheme } from "next-themes"
+import { useUserProfile } from "@/hooks/useUserProfile"
+import { useUserPreferences } from "@/hooks/useUserPreferences"
+import { useAccessibility } from "@/hooks/useAccessibility"
+import { useUserCredits } from "@/hooks/useUserCredits"
 
 interface UserMenuProps {
-  userName: string
-  userEmail: string
-  credits: number
+  // Made optional since we'll get data from hooks
+  userName?: string
+  userEmail?: string
+  credits?: number
 }
 
-export default function UserMenu({ userName, userEmail, credits }: UserMenuProps) {
+export default function UserMenu({ userName: propUserName, userEmail: propUserEmail, credits: propCredits }: UserMenuProps) {
   const { theme, setTheme } = useTheme()
   const [readabilityMenuOpen, setReadabilityMenuOpen] = useState(false)
   const [advancedOptionsOpen, setAdvancedOptionsOpen] = useState(false)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Readability settings
-  const [textSize, setTextSize] = useState("normal")
-  const [contrast, setContrast] = useState("normal")
-  const [spacing, setSpacing] = useState("normal")
-  const [colorFilter, setColorFilter] = useState("none")
+  // Hooks for real user data
+  const { profile, loading: profileLoading } = useUserProfile()
+  const { preferences, updateTheme, loading: prefsLoading } = useUserPreferences()
+  const { settings, setTextSize, setContrast, setSpacing, setColorFilter, loading: accessibilityLoading } = useAccessibility()
+  const { credits: userCredits, loading: creditsLoading } = useUserCredits()
+
+  // Use real data from hooks, fallback to props for backwards compatibility
+  const userName = profile?.name || propUserName || "Usuario"
+  const userEmail = profile?.email || propUserEmail || "usuario@diskdominator.com"
+  const credits = userCredits?.balance ?? propCredits ?? 0
+
+  // Current settings from hooks
+  const textSize = settings?.text_size || "normal"
+  const contrast = settings?.contrast || "normal"
+  const spacing = settings?.spacing || "normal"
+  const colorFilter = settings?.color_filter || "none"
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -68,48 +84,13 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
     setAdvancedOptionsOpen(!advancedOptionsOpen)
   }
 
-  // Function to apply text size
-  const applyTextSize = (size: string) => {
-    setTextSize(size)
-    document.documentElement.setAttribute("data-text-size", size)
-  }
-
-  // Function to apply contrast
-  const applyContrast = (level: string) => {
-    setContrast(level)
-    if (level === "high") {
-      document.documentElement.classList.add("high-contrast")
-    } else {
-      document.documentElement.classList.remove("high-contrast")
-    }
-  }
-
-  // Function to apply spacing
-  const applySpacing = (level: string) => {
-    setSpacing(level)
-    if (level === "wide") {
-      document.documentElement.classList.add("wide-spacing")
-    } else {
-      document.documentElement.classList.remove("wide-spacing")
-    }
-  }
-
-  // Function to apply color filter
-  const applyColorFilter = (filter: string) => {
-    setColorFilter(filter)
-
-    // Remove all existing filter classes
-    document.documentElement.classList.remove(
-      "filter-none",
-      "filter-grayscale",
-      "filter-protanopia",
-      "filter-deuteranopia",
-      "filter-tritanopia",
-    )
-
-    // Add the selected filter class
-    if (filter !== "none") {
-      document.documentElement.classList.add(`filter-${filter}`)
+  // Theme change handler that uses the real preferences hook
+  const handleThemeChange = async (newTheme: 'light' | 'dark' | 'system') => {
+    try {
+      await updateTheme(newTheme)
+      setTheme(newTheme)
+    } catch (error) {
+      console.error('Failed to update theme:', error)
     }
   }
 
@@ -123,7 +104,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
             onClick={() => setDropdownOpen(true)}
           >
             <Avatar className="h-10 w-10">
-              <AvatarImage src="/soccer-player-portrait.png" alt={userName} className="object-cover" />
+              <AvatarImage src={profile?.avatar_url || "/soccer-player-portrait.png"} alt={userName} className="object-cover" />
               <AvatarFallback className="bg-blue-700 text-white text-lg font-medium">
                 {userName.charAt(0)}
               </AvatarFallback>
@@ -152,10 +133,12 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
             <DropdownMenuItem>
               <User className="mr-2 h-4 w-4" />
               <span>Perfil</span>
+              {profileLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <CreditCard className="mr-2 h-4 w-4" />
-              <span>Créditos: {credits}</span>
+              <span>Créditos: {creditsLoading ? "..." : credits}</span>
+              {creditsLoading && <Loader2 className="ml-auto h-4 w-4 animate-spin" />}
             </DropdownMenuItem>
             <DropdownMenuItem>
               <Settings className="mr-2 h-4 w-4" />
@@ -170,19 +153,19 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
 
           {/* Theme selector */}
           <DropdownMenuGroup>
-            <DropdownMenuItem onClick={() => setTheme("light")}>
-              {theme === "light" && <Check className="mr-2 h-4 w-4" />}
-              {theme !== "light" && <div className="w-4 h-4 mr-2" />}
+            <DropdownMenuItem onClick={() => handleThemeChange("light")}>
+              {(preferences?.theme === "light" || theme === "light") && <Check className="mr-2 h-4 w-4" />}
+              {(preferences?.theme !== "light" && theme !== "light") && <div className="w-4 h-4 mr-2" />}
               <span>Tema Claro</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("dark")}>
-              {theme === "dark" && <Check className="mr-2 h-4 w-4" />}
-              {theme !== "dark" && <div className="w-4 h-4 mr-2" />}
+            <DropdownMenuItem onClick={() => handleThemeChange("dark")}>
+              {(preferences?.theme === "dark" || theme === "dark") && <Check className="mr-2 h-4 w-4" />}
+              {(preferences?.theme !== "dark" && theme !== "dark") && <div className="w-4 h-4 mr-2" />}
               <span>Tema Oscuro</span>
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => setTheme("system")}>
-              {theme === "system" && <Check className="mr-2 h-4 w-4" />}
-              {theme !== "system" && <div className="w-4 h-4 mr-2" />}
+            <DropdownMenuItem onClick={() => handleThemeChange("system")}>
+              {(preferences?.theme === "system" || theme === "system") && <Check className="mr-2 h-4 w-4" />}
+              {(preferences?.theme !== "system" && theme !== "system") && <div className="w-4 h-4 mr-2" />}
               <span>Tema del Sistema</span>
             </DropdownMenuItem>
           </DropdownMenuGroup>
@@ -209,7 +192,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${textSize === "small" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyTextSize("small")}
+                    onClick={() => setTextSize("small")}
                   >
                     Pequeño
                   </Button>
@@ -217,7 +200,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${textSize === "normal" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyTextSize("normal")}
+                    onClick={() => setTextSize("normal")}
                   >
                     Normal
                   </Button>
@@ -225,7 +208,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${textSize === "large" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyTextSize("large")}
+                    onClick={() => setTextSize("large")}
                   >
                     Grande
                   </Button>
@@ -240,7 +223,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${contrast === "normal" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyContrast("normal")}
+                    onClick={() => setContrast("normal")}
                   >
                     Normal
                   </Button>
@@ -248,7 +231,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${contrast === "high" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyContrast("high")}
+                    onClick={() => setContrast("high")}
                   >
                     Alto
                   </Button>
@@ -263,7 +246,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${spacing === "normal" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applySpacing("normal")}
+                    onClick={() => setSpacing("normal")}
                   >
                     Normal
                   </Button>
@@ -271,7 +254,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${spacing === "wide" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applySpacing("wide")}
+                    onClick={() => setSpacing("wide")}
                   >
                     Amplio
                   </Button>
@@ -304,7 +287,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${colorFilter === "none" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyColorFilter("none")}
+                    onClick={() => setColorFilter("none")}
                   >
                     Sin Filtro
                   </Button>
@@ -312,7 +295,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${colorFilter === "grayscale" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyColorFilter("grayscale")}
+                    onClick={() => setColorFilter("grayscale")}
                   >
                     Escala de Grises
                   </Button>
@@ -320,7 +303,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${colorFilter === "protanopia" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyColorFilter("protanopia")}
+                    onClick={() => setColorFilter("protanopia")}
                   >
                     Protanopía (Rojo-Verde)
                   </Button>
@@ -328,7 +311,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${colorFilter === "deuteranopia" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyColorFilter("deuteranopia")}
+                    onClick={() => setColorFilter("deuteranopia")}
                   >
                     Deuteranopía (Verde)
                   </Button>
@@ -336,7 +319,7 @@ export default function UserMenu({ userName, userEmail, credits }: UserMenuProps
                     variant="outline"
                     size="sm"
                     className={`text-xs h-8 ${colorFilter === "tritanopia" ? "bg-primary text-primary-foreground" : ""}`}
-                    onClick={() => applyColorFilter("tritanopia")}
+                    onClick={() => setColorFilter("tritanopia")}
                   >
                     Tritanopía (Azul-Amarillo)
                   </Button>

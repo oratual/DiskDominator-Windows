@@ -1,28 +1,86 @@
 import { useState, useCallback } from 'react';
 import { invoke } from './use-tauri';
 
-export interface FileInfo {
+export interface LargeFileInfo {
+  id: string;
   path: string;
   name: string;
   size: number;
-  modified: string;
-  created: string;
-  is_directory: boolean;
-  extension?: string;
-  hash?: string;
+  file_type: string;
+  extension: string;
+  created: number;
+  modified: number;
+  accessed: number;
+  disk: string;
+  compression_potential: number;
+  last_opened?: number;
+}
+
+export interface LargeFileFilter {
+  min_size?: number;
+  max_size?: number;
+  paths?: string[];
+  file_types?: string[];
+  extensions?: string[];
+  sort_by?: string;
+  sort_order?: string;
+}
+
+export interface SpaceAnalysis {
+  total_size: number;
+  file_count: number;
+  by_type: Record<string, {
+    size: number;
+    count: number;
+    percentage: number;
+  }>;
+  by_disk: Record<string, number>;
+  size_distribution: {
+    tiny: number;
+    small: number;
+    medium: number;
+    large: number;
+    huge: number;
+    gigantic: number;
+  };
+}
+
+export interface CompressionOptions {
+  format: 'zip' | 'tar' | 'tar_gz' | 'seven_z';
+  level: 'fast' | 'normal' | 'best';
+  keep_original: boolean;
+}
+
+export interface CompressionResult {
+  original_size: number;
+  compressed_size: number;
+  compression_ratio: number;
+  output_path: string;
+  time_taken: number;
+}
+
+export interface BatchDeleteResult {
+  deleted: string[];
+  failed: Array<{
+    id: string;
+    path: string;
+    error: string;
+  }>;
+  space_freed: number;
 }
 
 export const useLargeFiles = () => {
-  const [files, setFiles] = useState<FileInfo[]>([]);
+  const [files, setFiles] = useState<LargeFileInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [spaceAnalysis, setSpaceAnalysis] = useState<SpaceAnalysis | null>(null);
 
-  const findLargeFiles = useCallback(async (minSizeMB: number = 100) => {
+  const findLargeFiles = useCallback(async (filter: LargeFileFilter = {}) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await invoke<FileInfo[]>('get_large_files', {
-        min_size_mb: minSizeMB
+      const result = await invoke<LargeFileInfo[]>('find_large_files', {
+        filter
       });
       setFiles(result);
     } catch (err) {
@@ -32,19 +90,62 @@ export const useLargeFiles = () => {
     }
   }, []);
 
-  const deleteFile = useCallback(async (path: string) => {
+  const analyzeSpace = useCallback(async (paths?: string[]) => {
     try {
-      await invoke('perform_file_operation', {
-        operation: {
-          operation: 'delete',
-          source: path,
-          destination: null
-        }
+      setLoading(true);
+      setError(null);
+      const result = await invoke<SpaceAnalysis>('get_file_space_analysis', {
+        paths
       });
-      // Remove from local state
-      setFiles(prev => prev.filter(f => f.path !== path));
+      setSpaceAnalysis(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete file');
+      setError(err instanceof Error ? err.message : 'Failed to analyze space');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const compressFile = useCallback(async (filePath: string, options: CompressionOptions) => {
+    try {
+      const result = await invoke<CompressionResult>('compress_file', {
+        file_path: filePath,
+        options
+      });
+      // Refresh files list after compression
+      if (!options.keep_original) {
+        setFiles(prev => prev.filter(f => f.path !== filePath));
+      }
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to compress file');
+      throw err;
+    }
+  }, []);
+
+  const deleteFiles = useCallback(async (fileIds: string[], moveToTrash: boolean = true) => {
+    try {
+      const result = await invoke<BatchDeleteResult>('delete_large_files_batch', {
+        file_ids: fileIds,
+        move_to_trash: moveToTrash
+      });
+      // Remove deleted files from local state
+      setFiles(prev => prev.filter(f => !result.deleted.includes(f.id)));
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete files');
+      throw err;
+    }
+  }, []);
+
+  const previewFile = useCallback(async (filePath: string) => {
+    try {
+      const result = await invoke('generate_file_preview', {
+        file_path: filePath
+      });
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to generate preview');
+      throw err;
     }
   }, []);
 
@@ -56,34 +157,61 @@ export const useLargeFiles = () => {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  const getFileIcon = (extension?: string): string => {
-    if (!extension) return '📄';
-    
+  const getFileIcon = (fileType: string): string => {
     const iconMap: Record<string, string> = {
-      // Images
-      jpg: '🖼️', jpeg: '🖼️', png: '🖼️', gif: '🖼️', svg: '🖼️',
-      // Videos
-      mp4: '🎬', avi: '🎬', mkv: '🎬', mov: '🎬',
-      // Audio
-      mp3: '🎵', wav: '🎵', flac: '🎵',
-      // Documents
-      pdf: '📑', doc: '📝', docx: '📝', txt: '📃',
-      // Archives
-      zip: '📦', rar: '📦', '7z': '📦',
-      // Code
-      js: '💻', ts: '💻', py: '🐍', rs: '🦀',
+      image: '🖼️',
+      video: '🎬',
+      audio: '🎵',
+      document: '📑',
+      spreadsheet: '📊',
+      presentation: '📈',
+      archive: '📦',
+      executable: '⚙️',
+      code: '💻',
+      config: '⚙️',
+      database: '🗄️',
+      log: '📋',
+      markdown: '📝',
+      web: '🌐',
+      text: '📃',
+      other: '📄'
     };
     
-    return iconMap[extension.toLowerCase()] || '📄';
+    return iconMap[fileType] || '📄';
+  };
+
+  const getCompressionColor = (potential: number): string => {
+    if (potential >= 0.6) return 'text-green-600 dark:text-green-400';
+    if (potential >= 0.4) return 'text-yellow-600 dark:text-yellow-400';
+    if (potential >= 0.2) return 'text-orange-600 dark:text-orange-400';
+    return 'text-red-600 dark:text-red-400';
+  };
+
+  const getSizeCategory = (size: number): string => {
+    const mb = 1024 * 1024;
+    const gb = mb * 1024;
+    
+    if (size < mb) return 'tiny';
+    if (size < 10 * mb) return 'small';
+    if (size < 100 * mb) return 'medium';
+    if (size < gb) return 'large';
+    if (size < 10 * gb) return 'huge';
+    return 'gigantic';
   };
 
   return {
     files,
     loading,
     error,
+    spaceAnalysis,
     findLargeFiles,
-    deleteFile,
+    analyzeSpace,
+    compressFile,
+    deleteFiles,
+    previewFile,
     formatBytes,
-    getFileIcon
+    getFileIcon,
+    getCompressionColor,
+    getSizeCategory
   };
 };

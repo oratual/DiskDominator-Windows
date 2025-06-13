@@ -2,13 +2,17 @@
 import React from "react";
 
 import { useState, useRef, useEffect } from "react"
-import { HelpCircle, Zap } from "lucide-react"
+import { HelpCircle, Zap, RefreshCw, HardDrive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AIAssistant } from "./components/ai-assistant"
 import { FileSidebar } from "./components/file-sidebar"
 import { FileListView } from "./components/file-list-view"
 import { FileExplorerView } from "./components/file-explorer-view"
-import { largeFiles, availableDisks } from "./utils"
+import { StorageStats } from "./components/storage-stats"
+import { useLargeFiles, LargeFileFilter } from "@/hooks/use-large-files"
+import { useFileSpaceAnalysis } from "@/hooks/useFileSpaceAnalysis"
+import { useFileCompression } from "@/hooks/useFileCompression"
+import { useDiskScanner } from "@/hooks/use-disk-scanner"
 import type { FileItem } from "./types"
 
 export default function BigFilesView() {
@@ -28,13 +32,18 @@ export default function BigFilesView() {
   const [itemsPerPage, setItemsPerPage] = useState(10)
   const [activeDisk, setActiveDisk] = useState("all")
   const [showStats, setShowStats] = useState(true)
+  const [fileTypes, setFileTypes] = useState<string[]>([])  // For filtering
+  const [initialized, setInitialized] = useState(false)
 
-  // Size slider state
+  // Size slider state (in bytes)
+  const [minSize, setMinSize] = useState(1024 * 1024 * 1024) // 1GB default
+  const [maxSize, setMaxSize] = useState(10 * 1024 * 1024 * 1024) // 10GB default
   const [minSizeThumb, setMinSizeThumb] = useState(20) // Posición en porcentaje (0-100)
   const [maxSizeThumb, setMaxSizeThumb] = useState(80) // Posición en porcentaje (0-100)
 
   // Disk selection state
-  const [selectedDisks, setSelectedDisks] = useState<string[]>(["C", "D", "E", "J"])
+  const [selectedDisks, setSelectedDisks] = useState<string[]>([])
+  const [availableDisks, setAvailableDisks] = useState<Array<{ name: string; used: number; total: number; percentage: number }>>([])  // Initialize as empty array
 
   // AI Assistant states
   const [chatWidth, setChatWidth] = useState(300)
@@ -43,11 +52,126 @@ export default function BigFilesView() {
   const chatRef = useRef<HTMLDivElement>(null)
   const chatResizeRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  
+  // Hooks for data management
+  const {
+    files,
+    loading: filesLoading,
+    error: filesError,
+    spaceAnalysis,
+    findLargeFiles,
+    analyzeSpace,
+    compressFile,
+    deleteFiles,
+    previewFile,
+    formatBytes,
+    getFileIcon,
+    getCompressionColor,
+    getSizeCategory
+  } = useLargeFiles()
+  
+  const { analysis: detailedAnalysis, analyzeSpace: analyzeDetailedSpace } = useFileSpaceAnalysis()
+  const { compressFile: compressWithProgress, jobs: compressionJobs, suggestCompressionFormat } = useFileCompression()
+  const { disks, scanDisk, getDisks } = useDiskScanner()
 
+  // Initialize data on mount
+  useEffect(() => {
+    const initializeData = async () => {
+      try {
+        // Get available disks
+        const diskInfo = await getDisks()
+        if (diskInfo && diskInfo.length > 0) {
+          setAvailableDisks(diskInfo.map(disk => ({
+            name: disk.mount_point || disk.name,
+            used: disk.used_space,
+            total: disk.total_space,
+            percentage: (disk.used_space / disk.total_space) * 100
+          })))
+          // Select all disks by default
+          setSelectedDisks(diskInfo.map(disk => disk.mount_point || disk.name))
+        }
+        
+        // Find large files with default filter
+        const filter: LargeFileFilter = {
+          min_size: minSize,
+          max_size: maxSize,
+          sort_by: sortBy,
+          sort_order: sortDirection
+        }
+        await findLargeFiles(filter)
+        
+        // Analyze space
+        await analyzeSpace()
+        
+        setInitialized(true)
+      } catch (error) {
+        console.error('Failed to initialize data:', error)
+      }
+    }
+    
+    if (!initialized) {
+      initializeData()
+    }
+  }, [initialized, minSize, maxSize, sortBy, sortDirection, findLargeFiles, analyzeSpace, getDisks])
+  
+  // Update file search when filters change
+  useEffect(() => {
+    if (!initialized) return
+    
+    const updateFiles = async () => {
+      const filter: LargeFileFilter = {
+        min_size: minSize,
+        max_size: maxSize,
+        paths: selectedDisks.length > 0 ? selectedDisks : undefined,
+        file_types: fileTypes.length > 0 ? fileTypes : undefined,
+        sort_by: sortBy,
+        sort_order: sortDirection
+      }
+      await findLargeFiles(filter)
+    }
+    
+    updateFiles()
+  }, [minSize, maxSize, selectedDisks, fileTypes, sortBy, sortDirection, initialized, findLargeFiles])
+  
   // Show file preview
-  const openPreview = (file: FileItem) => {
-    setPreviewItem(file)
-    setShowPreview(true)
+  const openPreview = async (file: FileItem | any) => {
+    try {
+      const preview = await previewFile(file.path)
+      setPreviewItem({ ...file, preview })
+      setShowPreview(true)
+    } catch (error) {
+      console.error('Failed to preview file:', error)
+    }
+  }
+  
+  // Handle compression
+  const handleCompressFile = async (file: any) => {
+    const options = suggestCompressionFormat(file.file_type, file.size)
+    try {
+      await compressWithProgress(file.path, file.name, options)
+      // Refresh files list
+      const filter: LargeFileFilter = {
+        min_size: minSize,
+        max_size: maxSize,
+        paths: selectedDisks.length > 0 ? selectedDisks : undefined,
+        file_types: fileTypes.length > 0 ? fileTypes : undefined,
+        sort_by: sortBy,
+        sort_order: sortDirection
+      }
+      await findLargeFiles(filter)
+    } catch (error) {
+      console.error('Failed to compress file:', error)
+    }
+  }
+  
+  // Handle delete
+  const handleDeleteFiles = async (fileIds: string[]) => {
+    try {
+      await deleteFiles(fileIds, true) // Move to trash by default
+      // Files list will be automatically updated by the hook
+    } catch (error) {
+      console.error('Failed to delete files:', error)
+    }
   }
 
   // AI Assistant resize handling
@@ -181,11 +305,31 @@ export default function BigFilesView() {
           <div className="flex items-center">
             <h2 className="text-lg font-medium">Archivos y carpetas de gran tamaño</h2>
             <span className="ml-3 text-sm text-gray-500 dark:text-gray-300">
-              {largeFiles.length} elementos • {formatSize(largeFiles.reduce((total, file) => total + file.size, 0))}
+              {files.length} elementos • {formatBytes(files.reduce((total, file) => total + file.size, 0))}
             </span>
           </div>
 
           <div className="flex items-center space-x-3">
+            <Button 
+              variant="outline" 
+              className="flex items-center"
+              onClick={async () => {
+                const filter: LargeFileFilter = {
+                  min_size: minSize,
+                  max_size: maxSize,
+                  paths: selectedDisks.length > 0 ? selectedDisks : undefined,
+                  file_types: fileTypes.length > 0 ? fileTypes : undefined,
+                  sort_by: sortBy,
+                  sort_order: sortDirection
+                }
+                await findLargeFiles(filter)
+                await analyzeSpace(selectedDisks.length > 0 ? selectedDisks : undefined)
+              }}
+              disabled={filesLoading}
+            >
+              <RefreshCw size={16} className={`mr-2 ${filesLoading ? 'animate-spin' : ''}`} />
+              {filesLoading ? 'Escaneando...' : 'Actualizar'}
+            </Button>
             <Button variant="outline" className="flex items-center">
               <Zap size={16} className="mr-2" />
               Sugerencias de la IA
@@ -195,8 +339,44 @@ export default function BigFilesView() {
 
         {/* Content area */}
         <div className="flex-1 overflow-auto p-6 min-h-0">
+          {/* Storage Stats */}
+          {showStats && spaceAnalysis && (
+            <StorageStats 
+              analysis={spaceAnalysis} 
+              className="mb-6"
+            />
+          )}
+          
+          {/* Error State */}
+          {filesError && (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+              <p className="text-red-600 dark:text-red-400">{filesError}</p>
+            </div>
+          )}
+          
+          {/* Loading State */}
+          {filesLoading && files.length === 0 && (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <HardDrive className="w-12 h-12 text-gray-400 mx-auto mb-3 animate-pulse" />
+                <p className="text-gray-500 dark:text-gray-400">Buscando archivos grandes...</p>
+              </div>
+            </div>
+          )}
+          
           {/* List View */}
-          {selectedView === "list" && <FileListView files={largeFiles} openPreview={openPreview} />}
+          {selectedView === "list" && !filesLoading && (
+            <FileListView 
+              files={files} 
+              openPreview={openPreview}
+              onCompress={handleCompressFile}
+              onDelete={(fileIds) => handleDeleteFiles(fileIds)}
+              formatBytes={formatBytes}
+              getFileIcon={getFileIcon}
+              getCompressionColor={getCompressionColor}
+              compressionJobs={compressionJobs}
+            />
+          )}
 
           {/* Explorer View */}
           {selectedView === "explorer" && <FileExplorerView />}
@@ -206,8 +386,13 @@ export default function BigFilesView() {
         <div className="bg-white dark:bg-gray-800 px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between sticky bottom-0">
           <div className="flex items-center space-x-4">
             <span className="text-sm text-gray-500 dark:text-gray-300">
-              Archivos mostrados: <span className="font-medium">{largeFiles.length}</span>
+              Archivos mostrados: <span className="font-medium">{files.length}</span>
             </span>
+            {spaceAnalysis && (
+              <span className="text-sm text-gray-500 dark:text-gray-300">
+                Espacio total: <span className="font-medium">{formatBytes(spaceAnalysis.total_size)}</span>
+              </span>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">
@@ -220,13 +405,4 @@ export default function BigFilesView() {
       </div>
     </div>
   )
-}
-
-// Helper function for formatting size
-function formatSize(bytes: number) {
-  if (bytes < 1024) return bytes + " B"
-  else if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB"
-  else if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + " MB"
-  else if (bytes < 1024 * 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + " GB"
-  else return (bytes / (1024 * 1024 * 1024 * 1024)).toFixed(2) + " TB"
 }
