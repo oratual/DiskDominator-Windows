@@ -11,6 +11,9 @@ mod disk_analyzer;
 mod app_state;
 mod websocket;
 
+#[cfg(test)]
+mod tests;
+
 use app_state::AppState;
 
 fn main() {
