@@ -117,7 +117,27 @@ pub struct DiskAnalyzer {
     scan_start_time: Arc<Mutex<Option<Instant>>>,
 }
 
+pub struct AnalyzerStatistics {
+    pub duplicates_count: usize,
+    pub duplicate_size: u64,
+    pub large_files_count: usize,
+    pub last_scan_time: Option<chrono::DateTime<chrono::Utc>>,
+}
+
 impl DiskAnalyzer {
+    pub async fn get_statistics(&self) -> AnalyzerStatistics {
+        // Get current progress stats
+        let progress = self.progress.lock().await;
+        
+        // For now, return current scan statistics
+        // TODO: Implement proper result storage
+        AnalyzerStatistics {
+            duplicates_count: 0, // Will be populated when duplicate detection runs
+            duplicate_size: 0,
+            large_files_count: progress.total_files as usize, // Approximate for now
+            last_scan_time: Some(chrono::Utc::now()), // Current time as we're scanning
+        }
+    }
     pub fn new(websocket_manager: Arc<WebSocketManager>) -> Self {
         Self {
             progress: Arc::new(Mutex::new(ScanProgress {

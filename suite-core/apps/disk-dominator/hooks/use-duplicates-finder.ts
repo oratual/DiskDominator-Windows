@@ -36,6 +36,7 @@ export interface DuplicateSummary {
   total_duplicates: number;
   total_size: number;
   recoverable_size: number;
+  by_disk?: Record<string, number>;
 }
 
 export type DetectionMethod = 'hash' | 'name' | 'size' | 'name_and_size';

@@ -117,12 +117,29 @@ fn get_credits_path(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 fn create_default_user_profile() -> UserProfile {
+    // Get REAL system username
+    let username = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| whoami::username());
+    
+    // Get REAL hostname for email
+    let hostname = whoami::hostname();
+    let email = format!("{}@{}", username, hostname);
+    
+    // Get real name if available
+    let realname = whoami::realname();
+    let display_name = if realname.is_empty() {
+        username.clone()
+    } else {
+        realname
+    };
+    
     UserProfile {
-        id: "default-user".to_string(),
-        name: "Usuario".to_string(),
-        email: "usuario@diskdominator.com".to_string(),
-        avatar_url: Some("/soccer-player-portrait.png".to_string()),
-        credits: 100,
+        id: format!("user-{}", username),
+        name: display_name,
+        email,
+        avatar_url: None, // No fake avatar
+        credits: 0, // Start with 0 real credits
         plan: UserPlan::Free,
         created_at: chrono::Utc::now().to_rfc3339(),
         last_login: chrono::Utc::now().to_rfc3339(),
@@ -165,17 +182,8 @@ fn create_default_preferences() -> UserPreferences {
 
 fn create_default_credits() -> UserCredits {
     UserCredits {
-        balance: 100,
-        history: vec![
-            CreditTransaction {
-                id: "welcome-bonus".to_string(),
-                transaction_type: "earned".to_string(),
-                amount: 100,
-                description: "Bonus de bienvenida".to_string(),
-                date: chrono::Utc::now().to_rfc3339(),
-                metadata: None,
-            }
-        ],
+        balance: 0, // Start with ZERO credits
+        history: vec![], // NO fake transactions
         pending: 0,
     }
 }

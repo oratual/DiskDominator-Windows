@@ -48,6 +48,7 @@ pub struct DuplicateSummary {
     pub total_duplicates: usize,
     pub total_size: u64,
     pub recoverable_size: u64,
+    pub by_disk: HashMap<String, u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,11 +162,24 @@ pub async fn get_duplicate_groups(
 ) -> Result<HashMap<String, serde_json::Value>, String> {
     let groups = find_duplicates_advanced(options, state).await?;
     
+    // Calculate by_disk data
+    let mut by_disk: HashMap<String, u64> = HashMap::new();
+    for group in &groups {
+        // Only count recoverable space (excluding the original)
+        for (idx, copy) in group.copies.iter().enumerate() {
+            if idx > 0 { // Skip the first copy (original)
+                let disk_id = copy.disk.clone();
+                *by_disk.entry(disk_id).or_insert(0) += copy.size;
+            }
+        }
+    }
+    
     let summary = DuplicateSummary {
         total_groups: groups.len(),
         total_duplicates: groups.iter().map(|g| g.copies.len()).sum(),
         total_size: groups.iter().map(|g| g.total_size).sum(),
         recoverable_size: groups.iter().map(|g| g.recoverable_size).sum(),
+        by_disk,
     };
     
     let mut result = HashMap::new();

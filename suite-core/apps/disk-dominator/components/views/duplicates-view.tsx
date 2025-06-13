@@ -88,9 +88,9 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
   const [aiMessages, setAiMessages] = useState([
     {
       role: "assistant",
-      content: "He encontrado varios archivos duplicados en tu sistema.",
+      content: "Estoy aquí para ayudarte a gestionar archivos duplicados.",
     },
-    { role: "assistant", content: "¿Quieres que te ayude a decidir cuáles conservar y cuáles eliminar?" },
+    { role: "assistant", content: "Usa los controles de la izquierda para buscar duplicados en tus discos." },
   ])
   const [userInput, setUserInput] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -273,13 +273,32 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
     return value * (multipliers[unit] || 1)
   }
   
-  // Add this constant after the duplicateItems declaration
-  const availableDisks: Disk[] = [
-    { id: "C", label: "Disco C:", path: "C:/", color: "blue", usedSpace: 325, totalSpace: 500 },
-    { id: "D", label: "Disco D:", path: "D:/", color: "green", usedSpace: 750, totalSpace: 1000 },
-    { id: "E", label: "Disco E:", path: "E:/", color: "yellow", usedSpace: 1200, totalSpace: 2000 },
-    { id: "J", label: "Disco J:", path: "J:/", color: "purple", usedSpace: 400, totalSpace: 1000 },
-  ]
+  // Get real disk information
+  const [availableDisks, setAvailableDisks] = useState<Disk[]>([])
+  
+  // Fetch real disk data on mount
+  useEffect(() => {
+    const fetchDisks = async () => {
+      try {
+        const diskInfo = await invoke('get_disk_info')
+        if (diskInfo && diskInfo.disks) {
+          setAvailableDisks(diskInfo.disks.map((disk: any) => ({
+            id: disk.name.replace(':', ''),
+            label: disk.name,
+            path: disk.mount_point,
+            color: disk.name.startsWith('C') ? 'blue' : 
+                   disk.name.startsWith('D') ? 'green' : 
+                   disk.name.startsWith('E') ? 'yellow' : 'purple',
+            usedSpace: Math.round((disk.used_space / (1024 * 1024 * 1024))),
+            totalSpace: Math.round((disk.total_space / (1024 * 1024 * 1024)))
+          })))
+        }
+      } catch (error) {
+        console.error('Failed to fetch disk info:', error)
+      }
+    }
+    fetchDisks()
+  }, [])
 
   // Calcular espacio total recuperable
   const totalRecoverable = summary?.recoverable_size || 0
@@ -566,51 +585,6 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
           <>
             {/* Chat Messages */}
             <div className="flex-1 overflow-auto p-4 space-y-4">
-              {/* User Message */}
-              <div className="flex justify-end">
-                <div className="bg-blue-100 dark:bg-blue-900/50 rounded-lg p-3 max-w-xs chat-message-user">
-                  <p className="text-sm dark:text-white">
-                    Encuentra los archivos duplicados en mi disco C: que no he usado en los últimos 6 meses
-                  </p>
-                </div>
-              </div>
-
-              {/* AI Response */}
-              <div className="flex">
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-xs chat-message-ai">
-                  <p className="text-sm dark:text-gray-100">
-                    He analizado tu disco C: y encontré 15 archivos duplicados que no has usado en los últimos 6 meses.
-                    El grupo más grande es "Fotos de vacaciones" con 2 copias idénticas. ¿Quieres ver la lista completa?
-                  </p>
-                </div>
-              </div>
-
-              {/* User Message */}
-              <div className="flex justify-end">
-                <div className="bg-blue-100 dark:bg-blue-900/50 rounded-lg p-3 max-w-xs chat-message-user">
-                  <p className="text-sm dark:text-white">Sí, muéstrame la lista</p>
-                </div>
-              </div>
-
-              {/* AI Response */}
-              <div className="flex">
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 max-w-xs chat-message-ai">
-                  <p className="text-sm dark:text-gray-100">
-                    Aquí están los archivos duplicados sin usar en los últimos 6 meses:
-                    <br />
-                    <br />
-                    1. Fotos de vacaciones (2 copias, 1.8GB)
-                    <br />
-                    2. Italia2023.mp4 (3 copias, 3.5GB)
-                    <br />
-                    3. IMG001.jpg (3 copias, 2.4MB)
-                    <br />
-                    <br />
-                    ¿Quieres que te ayude a liberar espacio eliminando las copias innecesarias?
-                  </p>
-                </div>
-              </div>
-
               {aiMessages.map((message, index) => (
                 <div key={index} className={`${message.role === "assistant" ? "flex" : "flex justify-end"}`}>
                   <div
@@ -787,47 +761,33 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
                       </span>
                     </div>
 
-                    <div className="mt-2">
-                      <h4 className="text-xs font-medium mb-1 dark:text-gray-300">Impacto por disco</h4>
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-                        <div>
-                          <div className="flex justify-between text-xs mb-0.5 dark:text-gray-400">
-                            <span>C:</span>
-                            <span>48.0 GB (10%)</span>
-                          </div>
-                          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-yellow-500 w-[70%]"></div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-xs mb-0.5 dark:text-gray-400">
-                            <span>D:</span>
-                            <span>120.0 GB (12%)</span>
-                          </div>
-                          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-yellow-500 w-[60%]"></div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-xs mb-0.5 dark:text-gray-400">
-                            <span>E:</span>
-                            <span>90.0 GB (5%)</span>
-                          </div>
-                          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-green-500 w-[45%]"></div>
-                          </div>
-                        </div>
-                        <div>
-                          <div className="flex justify-between text-xs mb-0.5 dark:text-gray-400">
-                            <span>J:</span>
-                            <span>35.0 GB (3%)</span>
-                          </div>
-                          <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                            <div className="h-full bg-green-500 w-[30%]"></div>
-                          </div>
+                    {summary && summary.by_disk && Object.keys(summary.by_disk).length > 0 && (
+                      <div className="mt-2">
+                        <h4 className="text-xs font-medium mb-1 dark:text-gray-300">Impacto por disco</h4>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
+                          {Object.entries(summary.by_disk).map(([diskId, size]) => {
+                            const disk = availableDisks.find(d => d.id === diskId)
+                            const percentage = disk ? (size / (disk.totalSpace * 1024 * 1024 * 1024)) * 100 : 0
+                            const barWidth = Math.min(percentage * 10, 100) // Scale for visibility
+                            
+                            return (
+                              <div key={diskId}>
+                                <div className="flex justify-between text-xs mb-0.5 dark:text-gray-400">
+                                  <span>{diskId}:</span>
+                                  <span>{formatBytes(size)} ({percentage.toFixed(1)}%)</span>
+                                </div>
+                                <div className="h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                                  <div 
+                                    className={`h-full ${percentage > 10 ? 'bg-yellow-500' : 'bg-green-500'}`}
+                                    style={{ width: `${barWidth}%` }}
+                                  ></div>
+                                </div>
+                              </div>
+                            )
+                          })}
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1335,12 +1295,19 @@ const DuplicatesView = ({ params }: DuplicatesViewProps = { params: undefined })
             <span className="font-medium dark:text-white">{getSelectionStats.totalToDelete} elementos seleccionados</span>
             <span className="ml-2 text-gray-500 dark:text-gray-400">({formatBytes(getSelectionStats.spaceToRecover)} recuperables)</span>
 
-            <div className="ml-4 flex items-center">
-              <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 w-3/4"></div>
+            {totalRecoverable > 0 && (
+              <div className="ml-4 flex items-center">
+                <div className="w-32 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-green-500" 
+                    style={{ width: `${Math.min((getSelectionStats.spaceToRecover / totalRecoverable) * 100, 100)}%` }}
+                  ></div>
+                </div>
+                <span className="ml-2 text-xs text-green-600 dark:text-green-400">
+                  {Math.round((getSelectionStats.spaceToRecover / totalRecoverable) * 100)}% del total recuperable
+                </span>
               </div>
-              <span className="ml-2 text-xs text-green-600 dark:text-green-400">75% del total recuperable</span>
-            </div>
+            )}
           </div>
 
           <div className="flex items-center space-x-3">

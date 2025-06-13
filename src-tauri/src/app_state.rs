@@ -67,48 +67,36 @@ impl AppState {
         }
     }
     
-    /// Initialize sample activities for demo purposes
+    /// Initialize with REAL system detection activity
     async fn initialize_sample_activities(&self) {
         use crate::commands::home_commands::{Activity, ActivityType, ActivityMetadata};
-        use chrono::{Utc, Duration};
+        use chrono::Utc;
         use uuid::Uuid;
 
-        let sample_activities = vec![
-            Activity {
+        // Get REAL disk count
+        let disk_count = if let Ok(disks) = crate::file_system::get_system_disks().await {
+            disks.len() as u32
+        } else {
+            0
+        };
+
+        // Only add REAL startup activity
+        if disk_count > 0 {
+            let activity = Activity {
                 id: Uuid::new_v4().to_string(),
-                action: "Bienvenido a DiskDominator".to_string(),
-                target: "Sistema iniciado".to_string(),
+                action: "Sistema iniciado".to_string(),
+                target: format!("{} disco(s) detectado(s)", disk_count),
                 time: Utc::now(),
-                activity_type: ActivityType::ScanStarted,
-                status: "completed".to_string(),
-                metadata: None,
-            },
-            Activity {
-                id: Uuid::new_v4().to_string(),
-                action: "Discos del sistema detectados".to_string(),
-                target: "Detección automática completada".to_string(),
-                time: Utc::now() - Duration::seconds(30),
                 activity_type: ActivityType::ScanCompleted,
                 status: "completed".to_string(),
                 metadata: Some(ActivityMetadata {
                     size: None,
-                    count: Some(4), // 4 discos detectados
-                    duration: Some(2),
+                    count: Some(disk_count),
+                    duration: Some(1),
                     error: None,
                 }),
-            },
-            Activity {
-                id: Uuid::new_v4().to_string(),
-                action: "Sistema listo para uso".to_string(),
-                target: "Todas las funcionalidades disponibles".to_string(),
-                time: Utc::now() - Duration::seconds(10),
-                activity_type: ActivityType::ScanCompleted,
-                status: "ready".to_string(),
-                metadata: None,
-            },
-        ];
-
-        for activity in sample_activities {
+            };
+            
             self.add_activity(activity).await;
         }
     }

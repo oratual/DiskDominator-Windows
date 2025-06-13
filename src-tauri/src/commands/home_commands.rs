@@ -142,15 +142,50 @@ pub async fn get_system_overview(
     }
     
     // Get additional statistics from app state
-    let _app_state = state.inner();
-    // TODO: Implement scan state tracking
-    // let scan_state = app_state.scan_state.lock().await;
+    let app_state = state.inner();
     
-    // TODO: These would come from actual scan results and database
-    let duplicates_found = 0;
-    let space_recoverable = 0;
-    let large_files_count = 0;
-    let last_full_scan = None;
+    // Get real statistics from disk analyzer if available
+    let (duplicates_found, space_recoverable, large_files_count, last_full_scan) = 
+        if let Some(analyzer) = app_state.current_analyzer.read().await.as_ref() {
+            let stats = analyzer.get_statistics().await;
+            (
+                stats.duplicates_count as u32,
+                stats.duplicate_size,
+                stats.large_files_count as u32,
+                stats.last_scan_time
+            )
+        } else {
+            // If no analyzer is active, check stored results in storage
+            let storage = app_state.storage.read().await;
+            
+            // Calculate statistics from all stored scan results
+            let mut total_duplicates = 0u32;
+            let mut total_recoverable = 0u64;
+            let mut total_large_files = 0u32;
+            
+            for (_, files) in storage.scan_results.iter() {
+                // Count files > 100MB as large files
+                total_large_files += files.iter()
+                    .filter(|f| f.size > 100 * 1024 * 1024)
+                    .count() as u32;
+                
+                // TODO: Add duplicate detection to stored results
+                // For now, estimate duplicates as files with same size
+                let mut size_map = std::collections::HashMap::new();
+                for file in files {
+                    size_map.entry(file.size).or_insert(Vec::new()).push(file);
+                }
+                
+                for (size, group) in size_map {
+                    if group.len() > 1 {
+                        total_duplicates += (group.len() - 1) as u32;
+                        total_recoverable += size * (group.len() - 1) as u64;
+                    }
+                }
+            }
+            
+            (total_duplicates, total_recoverable, total_large_files, None)
+        };
     
     Ok(SystemOverview {
         disks: disk_summaries,
