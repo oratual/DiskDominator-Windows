@@ -41,7 +41,32 @@
       "identifier": "com.diskdominator.suite",
       "icon": [
         "icons/icon.ico"
-      ]
+      ],
+      "resources": [],
+      "externalBin": [],
+      "copyright": "© 2025 DiskDominator",
+      "category": "DeveloperTool",
+      "shortDescription": "Intelligent disk organization tool",
+      "longDescription": "DiskDominator helps you organize your hard drives intelligently using AI assistance.",
+      "deb": {
+        "depends": []
+      },
+      "macOS": {
+        "frameworks": [],
+        "minimumSystemVersion": "",
+        "exceptionDomain": "",
+        "signingIdentity": null,
+        "providerShortName": null,
+        "entitlements": null
+      },
+      "windows": {
+        "certificateThumbprint": null,
+        "digestAlgorithm": "sha256",
+        "timestampUrl": "",
+        "wix": {
+          "language": "en-US"
+        }
+      }
     },
     "security": {
       "csp": null

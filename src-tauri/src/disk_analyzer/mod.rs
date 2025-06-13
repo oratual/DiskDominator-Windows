@@ -349,18 +349,23 @@ impl DiskAnalyzer {
                         // Convert MFT results to FileInfo
                         let files = mft_result.files.into_iter()
                             .filter(|f| !Self::should_exclude_file(&f.path, config))
-                            .map(|mft_file| FileInfo {
-                                path: mft_file.path,
-                                name: mft_file.name,
-                                size: mft_file.size,
-                                modified: mft_file.modified,
-                                created: mft_file.created,
-                                is_directory: mft_file.is_directory,
-                                extension: std::path::Path::new(&mft_file.path)
+                            .map(|mft_file| {
+                                let extension = std::path::Path::new(&mft_file.path)
                                     .extension()
                                     .and_then(|ext| ext.to_str())
-                                    .map(|s| s.to_string()),
-                                hash: None,
+                                    .map(|s| s.to_string());
+                                FileInfo {
+                                    path: mft_file.path,
+                                    name: mft_file.name,
+                                    size: mft_file.size,
+                                    modified: chrono::DateTime::from_timestamp(mft_file.modified as i64, 0)
+                                        .unwrap_or_else(|| chrono::Utc::now()),
+                                    created: chrono::DateTime::from_timestamp(mft_file.created as i64, 0)
+                                        .unwrap_or_else(|| chrono::Utc::now()),
+                                    is_directory: mft_file.is_directory,
+                                    extension,
+                                    hash: None,
+                                }
                             })
                             .collect::<Vec<_>>();
                         

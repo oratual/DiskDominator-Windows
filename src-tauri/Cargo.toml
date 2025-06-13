@@ -40,6 +40,16 @@ default = ["custom-protocol", "windows"]
 custom-protocol = ["tauri/custom-protocol"]
 windows = ["winapi"]
 
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["fileapi", "winnt", "handleapi", "ioapiset", "winioctl", "processthreadsapi", "winbase", "synchapi"] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+
 [dev-dependencies]
 tempfile = "3.8"
 tokio-test = "0.4"
