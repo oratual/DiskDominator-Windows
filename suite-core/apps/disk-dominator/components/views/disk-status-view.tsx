@@ -28,6 +28,9 @@ import { Button } from "@/components/ui/button"
 import { useMobile } from "@/hooks/use-mobile"
 // Add this import at the top
 import { AIAssistantContext } from "../disk-dominator-v2-fixed"
+import { useDiskScanner } from "@/hooks/use-disk-scanner"
+import { useSystemOverview } from "@/hooks/useSystemOverview"
+import { getWebSocketManager } from "@/lib/websocket-manager"
 
 // Color associations for features
 const FEATURE_COLORS = {
@@ -275,109 +278,76 @@ function DiskStatusMessage({ disks }: { disks: DiskStatus[] }) {
 
 // Remove the scanning indicator from the main title section
 export default function DiskStatusView() {
-  // Sample data - in a real app, this would come from an API or context
-  const [disks, setDisks] = useState<DiskStatus[]>([
-    {
-      id: "disk1",
-      name: "Disco Local (C:)",
-      status: "scanning", // This disk is actively scanning
-      scanType: "quick",
-      progress: 65,
-      quickScanProgress: 65,
-      slowScanProgress: 0,
-      canAnalyzeDuplicates: true,
-      canOrganize: false,
-      estimatedTimeRemaining: 120, // 2 minutes
-      size: "500 GB",
-      used: "325 GB",
-      free: "175 GB",
-      isPaused: false, // Explicitly set to false to ensure it's recognized as active
-    },
-    {
-      id: "disk2",
-      name: "Datos (D:)",
-      status: "complete",
-      scanType: null,
-      progress: 100,
-      quickScanProgress: 100,
-      slowScanProgress: 100,
-      canAnalyzeDuplicates: true,
-      canOrganize: true,
-      size: "1 TB",
-      used: "750 GB",
-      free: "250 GB",
-    },
-    {
-      id: "disk3",
-      name: "Multimedia (E:)",
-      status: "complete", // Changed from "pending" to "complete" for testing
-      scanType: null,
-      progress: 100, // Changed from 0 to 100
-      quickScanProgress: 100, // Changed from 0 to 100
-      slowScanProgress: 100, // Changed from 0 to 100
-      canAnalyzeDuplicates: true, // Changed from false to true
-      canOrganize: true, // Changed from false to true
-      size: "2 TB",
-      used: "1.2 TB",
-      free: "800 GB",
-    },
-    {
-      id: "disk4",
-      name: "Backup (F:)",
-      status: "error",
-      scanType: null,
-      progress: 23,
-      quickScanProgress: 23,
-      slowScanProgress: 0,
-      canAnalyzeDuplicates: false,
-      canOrganize: false,
-      size: "4 TB",
-      used: "3.5 TB",
-      free: "500 GB",
-    },
-    {
-      id: "disk5",
-      name: "External Drive (G:)",
-      status: "pending",
-      scanType: null,
-      progress: 0,
-      quickScanProgress: 0,
-      slowScanProgress: 0,
-      canAnalyzeDuplicates: false,
-      canOrganize: false,
-      size: "1 TB",
-      used: "200 GB",
-      free: "800 GB",
-    },
-    {
-      id: "disk6",
-      name: "Network Drive (Z:)",
-      status: "pending",
-      scanType: null,
-      progress: 0,
-      quickScanProgress: 0,
-      slowScanProgress: 0,
-      canAnalyzeDuplicates: false,
-      canOrganize: false,
-      size: "8 TB",
-      used: "5.3 TB",
-      free: "2.7 TB",
-    },
-    {
-      id: "disk7",
-      name: "USB Drive (H:)",
-      status: "pending",
-      scanType: null,
-      progress: 0,
-      quickScanProgress: 0,
-      slowScanProgress: 0,
-      canAnalyzeDuplicates: false,
-      canOrganize: false,
-      size: "128 GB",
-      used: "85 GB",
-      free: "43 GB",
-    },
-  ])
+  // Get real disk data from the backend
+  const { data: systemData, loading: systemLoading } = useSystemOverview();
+  const scanner = useDiskScanner();
+  const wsManager = getWebSocketManager();
+  
+  // Store active scan sessions per disk
+  const [activeSessions, setActiveSessions] = useState<Record<string, string>>({});
+  
+  // Convert real disk data to our DiskStatus format
+  const [disks, setDisks] = useState<DiskStatus[]>([])
+
+  // Update disks when system data changes
+  useEffect(() => {
+    if (systemData?.disks) {
+      const updatedDisks: DiskStatus[] = systemData.disks.map(disk => ({
+        id: disk.mount_point || disk.device,
+        name: `${disk.mount_point || disk.device} (${disk.file_system})`,
+        status: "pending" as const,
+        scanType: null,
+        progress: 0,
+        quickScanProgress: 0,
+        slowScanProgress: 0,
+        canAnalyzeDuplicates: false,
+        canOrganize: false,
+        size: formatBytes(disk.total_space),
+        used: formatBytes(disk.used_space),
+        free: formatBytes(disk.free_space),
+        isPaused: false,
+      }));
+      setDisks(updatedDisks);
+    }
+  }, [systemData]);
+
+  // Listen for scan progress updates
+  useEffect(() => {
+    const unsubscribe = wsManager.subscribe('scan-progress', (progress) => {
+      setDisks(prevDisks => 
+        prevDisks.map(disk => {
+          if (disk.id === progress.disk_id) {
+            return {
+              ...disk,
+              status: progress.scan_status === 'running' ? 'scanning' : 
+                      progress.scan_status === 'paused' ? 'paused' :
+                      progress.scan_status === 'completed' ? 'complete' :
+                      progress.scan_status === 'error' ? 'error' : 'pending',
+              scanType: progress.scan_type === 'quick' ? 'quick' : 'slow',
+              progress: progress.progress,
+              quickScanProgress: progress.quick_scan_progress || progress.progress,
+              slowScanProgress: progress.deep_scan_progress || 0,
+              canAnalyzeDuplicates: (progress.quick_scan_progress || 0) >= 40,
+              canOrganize: (progress.deep_scan_progress || 0) >= 80,
+              estimatedTimeRemaining: progress.remaining_time,
+              isPaused: progress.scan_status === 'paused',
+            };
+          }
+          return disk;
+        })
+      );
+    });
+
+    return () => unsubscribe();
+  }, [wsManager]);
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   // Debug logging to verify scanning state
   useEffect(() => {
@@ -402,121 +372,91 @@ export default function DiskStatusView() {
     setShowExcludeModal(false)
   }
 
-  const startScan = (diskId: string, scanType: "quick" | "slow") => {
-    setDisks((prevDisks) =>
-      prevDisks.map((disk) => {
-        if (disk.id === diskId) {
-          return {
-            ...disk,
-            status: "scanning",
-            scanType,
-            progress: 0,
-            quickScanProgress: 0,
-            slowScanProgress: 0,
-            estimatedTimeRemaining: scanType === "quick" ? 120 : 300,
-            isPaused: false, // Explicitly set to false when starting a scan
-          }
-        }
-        return disk
-      }),
-    )
-  }
-
-  const togglePauseScan = (diskId: string) => {
-    setDisks((prevDisks) =>
-      prevDisks.map((disk) => {
-        if (disk.id === diskId) {
-          const isPaused = !disk.isPaused
-          return {
-            ...disk,
-            isPaused,
-            status: isPaused ? "paused" : "scanning",
-          }
-        }
-        return disk
-      }),
-    )
-  }
-
-  useEffect(() => {
-    const interval = setInterval(() => {
+  const startScan = async (diskId: string, scanType: "quick" | "slow") => {
+    try {
+      // Start the real scan
+      await scanner.startScan(diskId, scanType === 'slow' ? 'deep' : 'quick', {
+        exclude_patterns: excludedPaths,
+        include_hidden: false,
+        calculate_hashes: scanType === 'slow',
+      });
+      
+      // Store the session ID for this disk
+      if (scanner.sessionId) {
+        setActiveSessions(prev => ({
+          ...prev,
+          [diskId]: scanner.sessionId!
+        }));
+      }
+      
+      // Update UI to show scanning
       setDisks((prevDisks) =>
         prevDisks.map((disk) => {
-          if (disk.isPaused) return disk
-
-          if (disk.status === "scanning") {
-            if (disk.scanType === "quick" && (disk.quickScanProgress || 0) < 100) {
-              const newQuickProgress = Math.min((disk.quickScanProgress || 0) + 1, 100)
-              const newTimeRemaining = disk.estimatedTimeRemaining ? Math.max(0, disk.estimatedTimeRemaining - 1) : 0
-
-              let canAnalyzeDuplicates = disk.canAnalyzeDuplicates
-
-              if (newQuickProgress >= 40 && !canAnalyzeDuplicates) {
-                canAnalyzeDuplicates = true
-              }
-
-              if (newQuickProgress === 100) {
-                return {
-                  ...disk,
-                  status: "scanning",
-                  scanType: "slow",
-                  quickScanProgress: 100,
-                  slowScanProgress: 0,
-                  canAnalyzeDuplicates: true,
-                  canOrganize: false,
-                  estimatedTimeRemaining: 300,
-                  isPaused: false, // Ensure it's not paused
-                }
-              }
-
-              return {
-                ...disk,
-                quickScanProgress: newQuickProgress,
-                progress: newQuickProgress,
-                canAnalyzeDuplicates,
-                estimatedTimeRemaining: newTimeRemaining,
-                isPaused: false, // Ensure it's not paused
-              }
-            } else if (disk.scanType === "slow" && (disk.slowScanProgress || 0) < 100) {
-              const newSlowProgress = Math.min((disk.slowScanProgress || 0) + 0.5, 100)
-              const newTimeRemaining = disk.estimatedTimeRemaining ? Math.max(0, disk.estimatedTimeRemaining - 1) : 0
-
-              let canOrganize = disk.canOrganize
-
-              if (newSlowProgress >= 80 && !canOrganize) {
-                canOrganize = true
-              }
-
-              if (newSlowProgress === 100) {
-                return {
-                  ...disk,
-                  status: "complete",
-                  quickScanProgress: 100,
-                  slowScanProgress: 100,
-                  progress: 100,
-                  canAnalyzeDuplicates: true,
-                  canOrganize: true,
-                  estimatedTimeRemaining: 0,
-                }
-              }
-
-              return {
-                ...disk,
-                slowScanProgress: newSlowProgress,
-                progress: newSlowProgress,
-                canOrganize,
-                estimatedTimeRemaining: newTimeRemaining,
-                isPaused: false, // Ensure it's not paused
-              }
+          if (disk.id === diskId) {
+            return {
+              ...disk,
+              status: "scanning",
+              scanType,
+              progress: 0,
+              quickScanProgress: 0,
+              slowScanProgress: 0,
+              estimatedTimeRemaining: scanType === "quick" ? 120 : 300,
+              isPaused: false,
             }
           }
           return disk
         }),
       )
-    }, 1000)
+    } catch (error) {
+      console.error('Failed to start scan:', error);
+      // Update disk to error state
+      setDisks((prevDisks) =>
+        prevDisks.map((disk) => {
+          if (disk.id === diskId) {
+            return {
+              ...disk,
+              status: "error",
+            }
+          }
+          return disk
+        }),
+      )
+    }
+  }
 
-    return () => clearInterval(interval)
-  }, [])
+  const togglePauseScan = async (diskId: string) => {
+    const disk = disks.find(d => d.id === diskId);
+    if (!disk) return;
+    
+    const sessionId = activeSessions[diskId];
+    if (!sessionId) return;
+    
+    try {
+      if (disk.isPaused) {
+        await scanner.resumeScan();
+      } else {
+        await scanner.pauseScan();
+      }
+      
+      setDisks((prevDisks) =>
+        prevDisks.map((disk) => {
+          if (disk.id === diskId) {
+            const isPaused = !disk.isPaused
+            return {
+              ...disk,
+              isPaused,
+              status: isPaused ? "paused" : "scanning",
+            }
+          }
+          return disk
+        }),
+      )
+    } catch (error) {
+      console.error('Failed to toggle pause:', error);
+    }
+  }
+
+  // Remove the mock progress simulation - real progress comes from WebSocket
 
   const formatTimeRemaining = (seconds: number): string => {
     if (seconds <= 0) return "Completado"

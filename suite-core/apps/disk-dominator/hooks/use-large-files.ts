@@ -1,5 +1,6 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { invoke } from './use-tauri';
+import { getWebSocketManager } from '@/lib/websocket-manager';
 
 export interface LargeFileInfo {
   id: string;
@@ -74,17 +75,52 @@ export const useLargeFiles = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [spaceAnalysis, setSpaceAnalysis] = useState<SpaceAnalysis | null>(null);
+  const wsManager = getWebSocketManager();
 
   const findLargeFiles = useCallback(async (filter: LargeFileFilter = {}) => {
     try {
       setLoading(true);
       setError(null);
-      const result = await invoke<LargeFileInfo[]>('find_large_files', {
-        filter
+      const result = await invoke<LargeFileInfo[]>('get_large_files', {
+        filter: {
+          min_size: filter.min_size || 100 * 1024 * 1024, // Default 100MB
+          ...filter
+        }
       });
       setFiles(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to find large files');
+      // Mock data for development
+      if (process.env.NODE_ENV === 'development') {
+        setFiles([
+          {
+            id: '1',
+            path: 'C:/Users/Usuario/Videos/movie.mp4',
+            name: 'movie.mp4',
+            size: 2500000000,
+            file_type: 'video',
+            extension: 'mp4',
+            created: Date.now() - 86400000 * 30,
+            modified: Date.now() - 86400000 * 7,
+            accessed: Date.now() - 3600000,
+            disk: 'C',
+            compression_potential: 0.15,
+          },
+          {
+            id: '2',
+            path: 'D:/Backups/system-backup.zip',
+            name: 'system-backup.zip',
+            size: 5000000000,
+            file_type: 'archive',
+            extension: 'zip',
+            created: Date.now() - 86400000 * 90,
+            modified: Date.now() - 86400000 * 90,
+            accessed: Date.now() - 86400000 * 30,
+            disk: 'D',
+            compression_potential: 0.02,
+          },
+        ]);
+      }
     } finally {
       setLoading(false);
     }
@@ -94,12 +130,38 @@ export const useLargeFiles = () => {
     try {
       setLoading(true);
       setError(null);
-      const result = await invoke<SpaceAnalysis>('get_file_space_analysis', {
+      const result = await invoke<SpaceAnalysis>('analyze_space_usage', {
         paths
       });
       setSpaceAnalysis(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to analyze space');
+      // Mock data for development
+      if (process.env.NODE_ENV === 'development') {
+        setSpaceAnalysis({
+          total_size: 75000000000,
+          file_count: 250,
+          by_type: {
+            video: { size: 35000000000, count: 45, percentage: 46.7 },
+            archive: { size: 20000000000, count: 30, percentage: 26.7 },
+            documents: { size: 10000000000, count: 120, percentage: 13.3 },
+            images: { size: 8000000000, count: 40, percentage: 10.7 },
+            other: { size: 2000000000, count: 15, percentage: 2.6 },
+          },
+          by_disk: {
+            'C': 45000000000,
+            'D': 30000000000,
+          },
+          size_distribution: {
+            tiny: 0,
+            small: 0,
+            medium: 50,
+            large: 120,
+            huge: 65,
+            gigantic: 15,
+          },
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -198,6 +260,20 @@ export const useLargeFiles = () => {
     if (size < 10 * gb) return 'huge';
     return 'gigantic';
   };
+
+  // Listen for real-time updates
+  useEffect(() => {
+    const unsubscribe = wsManager.subscribe('large-files-update', (data) => {
+      if (data.files) {
+        setFiles(data.files);
+      }
+      if (data.analysis) {
+        setSpaceAnalysis(data.analysis);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [wsManager]);
 
   return {
     files,

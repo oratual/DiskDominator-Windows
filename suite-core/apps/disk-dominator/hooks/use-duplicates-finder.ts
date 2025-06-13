@@ -67,13 +67,16 @@ export const useDuplicatesFinder = () => {
       setLoading(true);
       setError(null);
       
-      const result = await invoke<{ groups: DuplicateGroup[]; summary: DuplicateSummary }>(
+      const result = await invoke<{ groups: any; summary: any }>(
         'get_duplicate_groups',
         { options }
       );
       
-      setDuplicates(result.groups);
-      setSummary(result.summary);
+      const groups = result.groups as DuplicateGroup[];
+      const summary = result.summary as DuplicateSummary;
+      
+      setDuplicates(groups);
+      setSummary(summary);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to find duplicates');
     } finally {
@@ -131,8 +134,8 @@ export const useDuplicatesFinder = () => {
   const deleteDuplicatesBatch = useCallback(async (fileIds: string[], moveToTrash = true) => {
     try {
       const result = await invoke<DeleteBatchResult>('delete_duplicates_batch', {
-        fileIds,
-        moveToTrash,
+        file_ids: fileIds,
+        move_to_trash: moveToTrash,
       });
       
       // Refresh duplicates list
