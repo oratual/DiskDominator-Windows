@@ -1,4 +1,7 @@
 {
+  "productName": "DiskDominator",
+  "version": "0.1.0",
+  "identifier": "com.diskdominator.suite",
   "build": {
     "beforeDevCommand": "npm run dev",
     "beforeBuildCommand": "npm run build",
@@ -6,68 +9,24 @@
     "distDir": "../out",
     "withGlobalTauri": false
   },
-  "package": {
-    "productName": "DiskDominator",
-    "version": "0.1.0"
-  },
+  "ctx": {},
   "tauri": {
-    "allowlist": {
-      "all": false,
-      "shell": {
-        "all": false,
-        "open": true
-      },
-      "fs": {
-        "all": true,
-        "scope": ["**"]
-      },
-      "path": {
-        "all": true
-      },
-      "os": {
-        "all": true
-      },
-      "window": {
-        "all": true
-      },
-      "dialog": {
-        "all": true
-      }
-    },
     "bundle": {
       "active": true,
-      "category": "DeveloperTool",
-      "copyright": "© 2025 DiskDominator Suite",
-      "externalBin": [],
+      "targets": "all",
+      "identifier": "com.diskdominator.suite",
       "icon": [
         "icons/icon.ico"
-      ],
-      "identifier": "com.diskdominator.suite",
-      "longDescription": "DiskDominator is a powerful disk management tool that helps you organize, clean, and optimize your storage with AI-powered assistance.",
-      "resources": [],
-      "shortDescription": "Intelligent disk management suite",
-      "targets": ["msi", "nsis"],
-      "windows": {
-        "certificateThumbprint": null,
-        "digestAlgorithm": "sha256",
-        "timestampUrl": ""
-      }
+      ]
     },
     "security": {
       "csp": null
     },
-    "updater": {
-      "active": false
-    },
     "windows": [
       {
-        "fullscreen": false,
-        "height": 800,
-        "resizable": true,
         "title": "DiskDominator",
         "width": 1200,
-        "minWidth": 800,
-        "minHeight": 600
+        "height": 800
       }
     ]
   }
