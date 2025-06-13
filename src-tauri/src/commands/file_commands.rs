@@ -72,6 +72,8 @@ pub async fn create_scan_session(
         max_file_size: None,
         calculate_hashes: matches!(scan_type_enum, ScanType::Deep),
         quick_hash_threshold: 1024 * 1024, // 1MB
+        duplicate_strategy: crate::disk_analyzer::DuplicateStrategy::SmartDetection,
+        large_file_threshold: 100 * 1024 * 1024, // 100MB
     };
 
     // Store analyzer for session management

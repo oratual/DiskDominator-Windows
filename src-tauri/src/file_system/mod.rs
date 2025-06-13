@@ -51,49 +51,41 @@ pub async fn get_system_disks() -> Result<Vec<DiskInfo>> {
 #[cfg(target_os = "windows")]
 async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
     use std::process::Command;
+    use std::os::windows::ffi::OsStringExt;
+    use std::ffi::OsString;
     
     let mut disks = Vec::new();
     
-    // Use WMIC to get disk information
-    let output = Command::new("wmic")
-        .args(&["logicaldisk", "get", "size,freespace,caption,filesystem", "/format:csv"])
-        .output()?;
-    
-    let output_str = String::from_utf8_lossy(&output.stdout);
-    
-    // Parse WMIC CSV output
-    for line in output_str.lines().skip(2) {  // Skip headers and empty line
-        if line.trim().is_empty() {
-            continue;
-        }
-        
-        let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() >= 5 {
-            let drive_letter = parts[1];
-            let filesystem = parts[2];
-            let free_space = parts[3].parse::<u64>().unwrap_or(0);
-            let total_space = parts[4].parse::<u64>().unwrap_or(0);
-            
-            if total_space > 0 {  // Skip drives with no size (like CD-ROM)
-                let used_space = total_space.saturating_sub(free_space);
-                
-                disks.push(DiskInfo {
-                    name: format!("Local Disk ({})", drive_letter),
-                    mount_point: format!("{}\\", drive_letter),
-                    total_space,
-                    available_space: free_space,
-                    used_space,
-                    file_system: filesystem.to_string(),
-                });
-            }
+    // Method 1: Try WMIC first for detailed information
+    if let Ok(wmic_disks) = get_disks_via_wmic().await {
+        if !wmic_disks.is_empty() {
+            return Ok(wmic_disks);
         }
     }
     
-    // Fallback to simple detection if WMIC fails
-    if disks.is_empty() {
-        for letter in b'C'..=b'Z' {
-            let drive = format!("{}:\\", letter as char);
-            if Path::new(&drive).exists() {
+    // Method 2: Try PowerShell as backup
+    if let Ok(ps_disks) = get_disks_via_powershell().await {
+        if !ps_disks.is_empty() {
+            return Ok(ps_disks);
+        }
+    }
+    
+    // Method 3: Fallback to Windows API calls via command line
+    if let Ok(api_disks) = get_disks_via_api_fallback().await {
+        if !api_disks.is_empty() {
+            return Ok(api_disks);
+        }
+    }
+    
+    // Method 4: Last resort - simple drive letter detection
+    for letter in b'C'..=b'Z' {
+        let drive = format!("{}:\\", letter as char);
+        if Path::new(&drive).exists() {
+            // Try to get real space info using dir command
+            if let Ok(space_info) = get_drive_space(&drive).await {
+                disks.push(space_info);
+            } else {
+                // Ultimate fallback with placeholder values
                 disks.push(DiskInfo {
                     name: format!("Local Disk ({}:)", letter as char),
                     mount_point: drive,
@@ -107,6 +99,206 @@ async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
     }
     
     Ok(disks)
+}
+
+#[cfg(target_os = "windows")]
+async fn get_disks_via_wmic() -> Result<Vec<DiskInfo>> {
+    use std::process::Command;
+    
+    let mut disks = Vec::new();
+    
+    let output = Command::new("wmic")
+        .args(&["logicaldisk", "get", "size,freespace,caption,filesystem,volumename", "/format:csv"])
+        .output()?;
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    
+    // Parse WMIC CSV output (format: Node,Caption,FileSystem,FreeSpace,Size,VolumeName)
+    for line in output_str.lines().skip(1) {  // Skip header
+        if line.trim().is_empty() || !line.contains(',') {
+            continue;
+        }
+        
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() >= 5 {
+            let drive_letter = parts[1].trim();
+            let filesystem = parts[2].trim();
+            let free_space = parts[3].trim().parse::<u64>().unwrap_or(0);
+            let total_space = parts[4].trim().parse::<u64>().unwrap_or(0);
+            let volume_name = if parts.len() > 5 { parts[5].trim() } else { "" };
+            
+            if total_space > 0 && !drive_letter.is_empty() {
+                let used_space = total_space.saturating_sub(free_space);
+                
+                let display_name = if !volume_name.is_empty() {
+                    format!("{} ({})", volume_name, drive_letter)
+                } else {
+                    format!("Local Disk ({})", drive_letter)
+                };
+                
+                disks.push(DiskInfo {
+                    name: display_name,
+                    mount_point: format!("{}\\", drive_letter),
+                    total_space,
+                    available_space: free_space,
+                    used_space,
+                    file_system: filesystem.to_string(),
+                });
+            }
+        }
+    }
+    
+    Ok(disks)
+}
+
+#[cfg(target_os = "windows")]
+async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
+    use std::process::Command;
+    
+    let mut disks = Vec::new();
+    
+    // PowerShell command to get disk info
+    let ps_script = r#"
+        Get-WmiObject -Class Win32_LogicalDisk | Where-Object {$_.Size -gt 0} | 
+        ForEach-Object {
+            "$($_.DeviceID),$($_.FileSystem),$($_.FreeSpace),$($_.Size),$($_.VolumeName)"
+        }
+    "#;
+    
+    let output = Command::new("powershell")
+        .args(&["-Command", ps_script])
+        .output()?;
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    
+    for line in output_str.lines() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        
+        let parts: Vec<&str> = line.split(',').collect();
+        if parts.len() >= 4 {
+            let drive_letter = parts[0].trim();
+            let filesystem = parts[1].trim();
+            let free_space = parts[2].trim().parse::<u64>().unwrap_or(0);
+            let total_space = parts[3].trim().parse::<u64>().unwrap_or(0);
+            let volume_name = if parts.len() > 4 { parts[4].trim() } else { "" };
+            
+            if total_space > 0 {
+                let used_space = total_space.saturating_sub(free_space);
+                
+                let display_name = if !volume_name.is_empty() {
+                    format!("{} ({})", volume_name, drive_letter)
+                } else {
+                    format!("Local Disk ({})", drive_letter)
+                };
+                
+                disks.push(DiskInfo {
+                    name: display_name,
+                    mount_point: format!("{}\\", drive_letter),
+                    total_space,
+                    available_space: free_space,
+                    used_space,
+                    file_system: filesystem.to_string(),
+                });
+            }
+        }
+    }
+    
+    Ok(disks)
+}
+
+#[cfg(target_os = "windows")]
+async fn get_disks_via_api_fallback() -> Result<Vec<DiskInfo>> {
+    use std::process::Command;
+    
+    let mut disks = Vec::new();
+    
+    // Use fsutil to get drive info
+    for letter in b'C'..=b'Z' {
+        let drive = format!("{}:", letter as char);
+        let drive_path = format!("{}:\\", letter as char);
+        
+        if !Path::new(&drive_path).exists() {
+            continue;
+        }
+        
+        // Get volume info using fsutil
+        if let Ok(output) = Command::new("fsutil")
+            .args(&["volume", "diskfree", &drive])
+            .output() {
+            
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            
+            let mut total_space = 0u64;
+            let mut available_space = 0u64;
+            
+            for line in output_str.lines() {
+                if line.contains("Total # of bytes") {
+                    if let Some(bytes_str) = line.split(':').nth(1) {
+                        total_space = bytes_str.trim().parse::<u64>().unwrap_or(0);
+                    }
+                } else if line.contains("Total # of free bytes") {
+                    if let Some(bytes_str) = line.split(':').nth(1) {
+                        available_space = bytes_str.trim().parse::<u64>().unwrap_or(0);
+                    }
+                }
+            }
+            
+            if total_space > 0 {
+                let used_space = total_space.saturating_sub(available_space);
+                
+                disks.push(DiskInfo {
+                    name: format!("Local Disk ({}:)", letter as char),
+                    mount_point: drive_path,
+                    total_space,
+                    available_space,
+                    used_space,
+                    file_system: "NTFS".to_string(), // Default assumption
+                });
+            }
+        }
+    }
+    
+    Ok(disks)
+}
+
+#[cfg(target_os = "windows")]
+async fn get_drive_space(drive: &str) -> Result<DiskInfo> {
+    use std::process::Command;
+    
+    // Use dir command to get space info
+    let output = Command::new("dir")
+        .args(&[drive, "/-c"])
+        .output()?;
+    
+    let output_str = String::from_utf8_lossy(&output.stdout);
+    
+    // Parse the last line which contains space info
+    if let Some(last_line) = output_str.lines().last() {
+        let parts: Vec<&str> = last_line.split_whitespace().collect();
+        if parts.len() >= 4 {
+            // Format is typically: "     X Dir(s)  XXXXXXXXX bytes free"
+            if let Some(bytes_str) = parts.iter().rev().find(|&&s| s.chars().all(|c| c.is_ascii_digit() || c == ',')) {
+                let free_space = bytes_str.replace(',', "").parse::<u64>().unwrap_or(0);
+                
+                // Estimate total space (this is a rough approximation)
+                let total_space = free_space * 2; // Very rough estimate
+                let used_space = total_space.saturating_sub(free_space);
+                
+                return Ok(DiskInfo {
+                    name: format!("Local Disk ({})", &drive[..2]),
+                    mount_point: drive.to_string(),
+                    total_space,
+                    available_space: free_space,
+                    used_space,
+                    file_system: "NTFS".to_string(),
+                });
+            }
+        }
+    }
+    
+    Err(anyhow::anyhow!("Could not parse drive space information"))
 }
 
 #[cfg(not(target_os = "windows"))]

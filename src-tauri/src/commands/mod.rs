@@ -4,6 +4,7 @@ pub mod duplicate_commands;
 pub mod large_files_commands;
 pub mod organize_commands;
 pub mod user_commands;
+pub mod disk_analyzer_commands;
 // Temporarily commented out until external modules are available:
 // pub mod auth_commands;
 // pub mod i18n_commands;

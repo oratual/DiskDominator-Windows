@@ -292,6 +292,25 @@ impl WebSocketManager {
         let _ = self.tx.send(message);
         Ok(())
     }
+
+    /// Send scan update (simplified method for compatibility)
+    pub async fn send_scan_update(
+        &self,
+        session_id: &str,
+        event_type: &str,
+        data: Option<serde_json::Value>,
+    ) {
+        let message_data = match data {
+            Some(d) => d,
+            None => serde_json::json!({
+                "session_id": session_id,
+                "event_type": event_type,
+                "timestamp": chrono::Utc::now()
+            }),
+        };
+
+        let _ = self.broadcast_message(event_type.to_string(), message_data).await;
+    }
 }
 
 impl Default for WebSocketManager {

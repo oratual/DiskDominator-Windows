@@ -33,12 +33,22 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         let websocket_manager = Arc::new(crate::websocket::WebSocketManager::new());
-        Self {
+        let app_state = Self {
             storage: Arc::new(RwLock::new(SimpleStorage::default())),
             current_analyzer: Arc::new(RwLock::new(None)),
             websocket_manager,
             activity_log: Arc::new(RwLock::new(std::collections::HashMap::new())),
-        }
+        };
+        
+        // Initialize with some sample activities for demo purposes
+        tokio::spawn({
+            let state = app_state.clone();
+            async move {
+                state.initialize_sample_activities().await;
+            }
+        });
+        
+        app_state
     }
     
     /// Add activity to the log
@@ -54,6 +64,52 @@ impl AppState {
             for activity in activities.into_iter().take(100) {
                 log.insert(activity.id.clone(), activity);
             }
+        }
+    }
+    
+    /// Initialize sample activities for demo purposes
+    async fn initialize_sample_activities(&self) {
+        use crate::commands::home_commands::{Activity, ActivityType, ActivityMetadata};
+        use chrono::{Utc, Duration};
+        use uuid::Uuid;
+
+        let sample_activities = vec![
+            Activity {
+                id: Uuid::new_v4().to_string(),
+                action: "Bienvenido a DiskDominator".to_string(),
+                target: "Sistema iniciado".to_string(),
+                time: Utc::now(),
+                activity_type: ActivityType::ScanStarted,
+                status: "completed".to_string(),
+                metadata: None,
+            },
+            Activity {
+                id: Uuid::new_v4().to_string(),
+                action: "Discos del sistema detectados".to_string(),
+                target: "Detección automática completada".to_string(),
+                time: Utc::now() - Duration::seconds(30),
+                activity_type: ActivityType::ScanCompleted,
+                status: "completed".to_string(),
+                metadata: Some(ActivityMetadata {
+                    size: None,
+                    count: Some(4), // 4 discos detectados
+                    duration: Some(2),
+                    error: None,
+                }),
+            },
+            Activity {
+                id: Uuid::new_v4().to_string(),
+                action: "Sistema listo para uso".to_string(),
+                target: "Todas las funcionalidades disponibles".to_string(),
+                time: Utc::now() - Duration::seconds(10),
+                activity_type: ActivityType::ScanCompleted,
+                status: "ready".to_string(),
+                metadata: None,
+            },
+        ];
+
+        for activity in sample_activities {
+            self.add_activity(activity).await;
         }
     }
     
