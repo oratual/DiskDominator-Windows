@@ -1,7 +1,7 @@
 "use client"
 import React from "react";
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useCallback } from "react"
 import { HelpCircle, Zap, RefreshCw, HardDrive } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AIAssistant } from "./components/ai-assistant"
@@ -72,7 +72,15 @@ export default function BigFilesView() {
   
   const { analysis: detailedAnalysis, analyzeSpace: analyzeDetailedSpace } = useFileSpaceAnalysis()
   const { compressFile: compressWithProgress, jobs: compressionJobs, suggestCompressionFormat } = useFileCompression()
-  const { disks, scanDisk, getDisks } = useDiskScanner()
+  const { startScan } = useDiskScanner()
+  
+  // Mock function for getDisks - replace with real implementation
+  const getDisks = useCallback(async () => {
+    return [
+      { mount_point: 'C:', name: 'Disco Local (C:)', used_space: 500000000000, total_space: 1000000000000 },
+      { mount_point: 'D:', name: 'Datos (D:)', used_space: 750000000000, total_space: 2000000000000 }
+    ]
+  }, [])
 
   // Initialize data on mount
   useEffect(() => {

@@ -3,7 +3,7 @@
 import React from "react";
 import { useState, useEffect } from "react"
 import { HardDrive, Copy, FileText, LayoutGrid, RefreshCw, Home } from "lucide-react"
-import DuplicatesView from "./views/duplicates-view"
+// import DuplicatesView from "./views/duplicates-view" // Temporarily disabled
 import BigFilesView from "./views/big-files-view"
 import OrganizeView from "./views/organize-view"
 import DiskStatusView from "./views/disk-status-view"
@@ -17,7 +17,7 @@ import { TabNavigation } from "./tab-navigation"
 
 export default function DiskDominatorV2() {
   // Tab state management
-  const [activeTab, setActiveTab] = useState("duplicates")
+  const [activeTab, setActiveTab] = useState("bigfiles")
   const { resolvedTheme } = useTheme()
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const isTauri = useTauri()
@@ -222,7 +222,7 @@ export default function DiskDominatorV2() {
         <div className="h-full overflow-auto">
           {activeTab === "home" && <HomeView />}
           {activeTab === "analyze" && (isTauri ? <DiskStatusViewReal /> : <DiskStatusView />)}
-          {activeTab === "duplicates" && <DuplicatesView />}
+          {activeTab === "duplicates" && <div className="p-8 text-center"><p>Vista de duplicados temporalmente deshabilitada</p></div>}
           {activeTab === "bigfiles" && <BigFilesView />}
           {activeTab === "organize" && <OrganizeView />}
         </div>

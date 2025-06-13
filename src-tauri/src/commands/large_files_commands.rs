@@ -5,6 +5,7 @@ use crate::app_state::AppState;
 use crate::file_system::FileInfo;
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use tokio::fs;
 // use std::io::Write; // Not needed for current implementation
 
@@ -120,8 +121,18 @@ pub struct FailedOperation {
 #[tauri::command]
 pub async fn find_large_files(
     filter: LargeFileFilter,
-    state: State<'_, AppState>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<LargeFileInfo>, String> {
+    // Log scan start activity
+    crate::commands::home_commands::log_activity(
+        state.inner(),
+        "Búsqueda de archivos grandes iniciada".to_string(),
+        format!("Filtro: min_size={:?}, max_size={:?}", 
+            filter.min_size, filter.max_size),
+        crate::commands::home_commands::ActivityType::ScanStarted,
+        "running".to_string(),
+        None,
+    ).await;
     let storage = state.storage.read().await;
     let mut large_files = Vec::new();
     
@@ -189,6 +200,22 @@ pub async fn find_large_files(
     // Sort results
     sort_large_files(&mut large_files, &filter.sort_by, &filter.sort_order);
     
+    // Log scan completion activity
+    let total_size: u64 = large_files.iter().map(|f| f.size).sum();
+    crate::commands::home_commands::log_activity(
+        state.inner(),
+        "Búsqueda de archivos grandes completada".to_string(),
+        format!("{} archivos encontrados", large_files.len()),
+        crate::commands::home_commands::ActivityType::ScanCompleted,
+        "completed".to_string(),
+        Some(crate::commands::home_commands::ActivityMetadata {
+            size: Some(total_size),
+            count: Some(large_files.len() as u32),
+            duration: None,
+            error: None,
+        }),
+    ).await;
+    
     Ok(large_files)
 }
 
@@ -196,7 +223,7 @@ pub async fn find_large_files(
 #[tauri::command]
 pub async fn get_file_space_analysis(
     paths: Option<Vec<String>>,
-    state: State<'_, AppState>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<SpaceAnalysis, String> {
     let storage = state.storage.read().await;
     let mut total_size = 0u64;
@@ -372,7 +399,7 @@ pub async fn generate_file_preview(
 pub async fn delete_large_files_batch(
     file_ids: Vec<String>,
     move_to_trash: bool,
-    state: State<'_, AppState>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<BatchDeleteResult, String> {
     let mut deleted = Vec::new();
     let mut failed = Vec::new();
@@ -416,6 +443,23 @@ pub async fn delete_large_files_batch(
         }
     }
     
+    // Log deletion activity if any files were deleted
+    if !deleted.is_empty() {
+        crate::commands::home_commands::log_activity(
+            state.inner(),
+            "Archivos eliminados".to_string(),
+            format!("{} archivos eliminados", deleted.len()),
+            crate::commands::home_commands::ActivityType::FilesDeleted,
+            "completed".to_string(),
+            Some(crate::commands::home_commands::ActivityMetadata {
+                size: Some(space_freed),
+                count: Some(deleted.len() as u32),
+                duration: None,
+                error: None,
+            }),
+        ).await;
+    }
+
     Ok(BatchDeleteResult {
         deleted,
         failed,

@@ -193,7 +193,7 @@ export function FileListView({
                     </Tooltip>
                   </TooltipProvider>
                   {compressionJob && (
-                    <Badge variant={compressionJob.status === 'completed' ? 'success' : compressionJob.status === 'failed' ? 'destructive' : 'default'}>
+                    <Badge variant={compressionJob.status === 'failed' ? 'destructive' : 'default'}>
                       {compressionJob.status === 'compressing' ? 'Comprimiendo...' : compressionJob.status}
                     </Badge>
                   )}

@@ -36,25 +36,6 @@ export const useSystemOverview = (autoRefresh: boolean = true, refreshInterval: 
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch system overview');
-      // In development, use mock data if Tauri is not available
-      if (process.env.NODE_ENV === 'development') {
-        setData({
-          disks: [
-            { id: 'C', label: 'Local Disk (C:)', path: 'C:\\', used: 325_000_000_000, total: 500_000_000_000, free: 175_000_000_000, percentage: 65 },
-            { id: 'D', label: 'Data (D:)', path: 'D:\\', used: 750_000_000_000, total: 1_000_000_000_000, free: 250_000_000_000, percentage: 75 },
-            { id: 'E', label: 'Backup (E:)', path: 'E:\\', used: 1_200_000_000_000, total: 2_000_000_000_000, free: 800_000_000_000, percentage: 60 },
-            { id: 'J', label: 'External (J:)', path: 'J:\\', used: 400_000_000_000, total: 1_000_000_000_000, free: 600_000_000_000, percentage: 40 },
-          ],
-          total_disk_space: 4_500_000_000_000,
-          total_used_space: 2_675_000_000_000,
-          total_free_space: 1_825_000_000_000,
-          duplicates_found: 120,
-          space_recoverable: 4_500_000_000,
-          large_files_count: 45,
-          last_full_scan: new Date().toISOString(),
-        });
-        setError(null);
-      }
     } finally {
       setLoading(false);
     }

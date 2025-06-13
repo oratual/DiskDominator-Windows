@@ -6,8 +6,7 @@ import { ChevronLeft, ChevronRight, List, Grid, ChevronDown } from "lucide-react
 import DiskSelector from "@/components/disk-selector"
 import type { Disk } from "@/components/disk-selector"
 import { FileSizeSlider } from "./file-size-slider"
-import { StorageStatsComponent } from "./storage-stats"
-import { storageStats } from "../utils"
+import { StorageStats } from "./storage-stats"
 
 interface FileSidebarProps {
   sidebarExpanded: boolean
@@ -93,11 +92,11 @@ export function FileSidebar({
               <DiskSelector
                 title="Discos Seleccionados"
                 disks={availableDisks.map(disk => ({ 
-                  name: disk.name, 
-                  letter: disk.name, 
-                  used: disk.used, 
-                  total: disk.total, 
-                  percentage: disk.percentage 
+                  id: disk.name,
+                  label: disk.name, 
+                  path: disk.name,
+                  usedSpace: disk.used, 
+                  totalSpace: disk.total
                 }))}
                 selectedDisks={selectedDisks}
                 onChange={setSelectedDisks}
@@ -105,14 +104,11 @@ export function FileSidebar({
               />
             </div>
 
-            {/* Storage Stats Component */}
-            <StorageStatsComponent
-              storageStats={storageStats}
-              showStats={showStats}
-              setShowStats={setShowStats}
-              activeDisk={activeDisk}
-              setActiveDisk={setActiveDisk}
-            />
+            {/* Storage Stats Component - Placeholder for now */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h4 className="text-sm font-medium mb-2">Estadísticas de Almacenamiento</h4>
+              <p className="text-xs text-gray-500">Se mostrarán cuando haya datos de análisis disponibles</p>
+            </div>
 
             {/* File Size Slider Component */}
             <FileSizeSlider

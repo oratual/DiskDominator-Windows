@@ -22,6 +22,7 @@ pub struct AppState {
     pub storage: Arc<RwLock<SimpleStorage>>,
     pub current_analyzer: Arc<RwLock<Option<crate::disk_analyzer::DiskAnalyzer>>>,
     pub websocket_manager: Arc<crate::websocket::WebSocketManager>,
+    pub activity_log: Arc<RwLock<std::collections::HashMap<String, crate::commands::home_commands::Activity>>>,
     // Commented out until modules are available:
     // pub auth: Arc<RwLock<AuthModule>>,
     // pub i18n: Arc<RwLock<I18nModule>>,
@@ -36,6 +37,23 @@ impl AppState {
             storage: Arc::new(RwLock::new(SimpleStorage::default())),
             current_analyzer: Arc::new(RwLock::new(None)),
             websocket_manager,
+            activity_log: Arc::new(RwLock::new(std::collections::HashMap::new())),
+        }
+    }
+    
+    /// Add activity to the log
+    pub async fn add_activity(&self, activity: crate::commands::home_commands::Activity) {
+        let mut log = self.activity_log.write().await;
+        log.insert(activity.id.clone(), activity);
+        
+        // Keep only last 100 activities
+        if log.len() > 100 {
+            let mut activities: Vec<_> = log.values().cloned().collect();
+            activities.sort_by(|a, b| b.time.cmp(&a.time));
+            log.clear();
+            for activity in activities.into_iter().take(100) {
+                log.insert(activity.id.clone(), activity);
+            }
         }
     }
     

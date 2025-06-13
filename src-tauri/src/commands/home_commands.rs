@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 
 use crate::app_state::AppState;
 use crate::file_system;
+use uuid::Uuid;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiskSummary {
@@ -31,7 +32,7 @@ pub struct SystemOverview {
     pub last_full_scan: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ActivityType {
     ScanStarted,
@@ -43,7 +44,7 @@ pub enum ActivityType {
     ErrorOccurred,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Activity {
     pub id: String,
     pub action: String,
@@ -54,7 +55,7 @@ pub struct Activity {
     pub metadata: Option<ActivityMetadata>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ActivityMetadata {
     pub size: Option<u64>,
     pub count: Option<u32>,
@@ -76,6 +77,28 @@ pub struct QuickActionResult {
     pub success: bool,
     pub message: String,
     pub action_type: QuickActionType,
+}
+
+/// Helper function to create and log activity
+pub async fn log_activity(
+    state: &Arc<AppState>,
+    action: String,
+    target: String,
+    activity_type: ActivityType,
+    status: String,
+    metadata: Option<ActivityMetadata>,
+) {
+    let activity = Activity {
+        id: Uuid::new_v4().to_string(),
+        action,
+        target,
+        time: Utc::now(),
+        activity_type,
+        status,
+        metadata,
+    };
+    
+    state.add_activity(activity).await;
 }
 
 #[tauri::command]
@@ -144,65 +167,25 @@ pub async fn get_system_overview(
 #[tauri::command]
 pub async fn get_recent_activity(
     limit: Option<u32>,
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<Activity>, String> {
-    let activity_limit = limit.unwrap_or(5);
+    let activity_limit = limit.unwrap_or(50);
     
-    // TODO: Implement actual activity logging and retrieval
-    // For now, return mock data
-    let mut activities = Vec::new();
+    // Get real activity from app state
+    let app_state = state.inner();
+    let activity_log = app_state.activity_log.read().await;
     
-    // Mock recent activities
-    if activity_limit > 0 {
-        activities.push(Activity {
-            id: "1".to_string(),
-            action: "Escaneo completado".to_string(),
-            target: "Disco C:".to_string(),
-            time: Utc::now() - chrono::Duration::hours(2),
-            activity_type: ActivityType::ScanCompleted,
-            status: "success".to_string(),
-            metadata: Some(ActivityMetadata {
-                size: Some(500_000_000_000),
-                count: Some(150_000),
-                duration: Some(180),
-                error: None,
-            }),
-        });
+    // If no activities exist, return empty vec instead of mock data
+    if activity_log.is_empty() {
+        return Ok(Vec::new());
     }
     
-    if activity_limit > 1 {
-        activities.push(Activity {
-            id: "2".to_string(),
-            action: "Duplicados encontrados".to_string(),
-            target: "120 archivos (4.5 GB)".to_string(),
-            time: Utc::now() - chrono::Duration::hours(2) - chrono::Duration::minutes(5),
-            activity_type: ActivityType::DuplicatesFound,
-            status: "success".to_string(),
-            metadata: Some(ActivityMetadata {
-                size: Some(4_500_000_000),
-                count: Some(120),
-                duration: None,
-                error: None,
-            }),
-        });
-    }
+    // Convert to Vec and sort by time (most recent first)
+    let mut activities: Vec<Activity> = activity_log.values().cloned().collect();
+    activities.sort_by(|a, b| b.time.cmp(&a.time));
     
-    if activity_limit > 2 {
-        activities.push(Activity {
-            id: "3".to_string(),
-            action: "Archivos organizados".to_string(),
-            target: "Documentos".to_string(),
-            time: Utc::now() - chrono::Duration::days(1),
-            activity_type: ActivityType::DiskOrganized,
-            status: "success".to_string(),
-            metadata: Some(ActivityMetadata {
-                size: None,
-                count: Some(450),
-                duration: Some(45),
-                error: None,
-            }),
-        });
-    }
+    // Limit results
+    activities.truncate(activity_limit as usize);
     
     Ok(activities)
 }
@@ -210,12 +193,21 @@ pub async fn get_recent_activity(
 #[tauri::command]
 pub async fn execute_quick_action(
     action_type: QuickActionType,
-    _state: State<'_, Arc<AppState>>,
+    state: State<'_, Arc<AppState>>,
 ) -> Result<QuickActionResult, String> {
     match action_type {
         QuickActionType::ScanDisk => {
-            // Trigger disk scan
-            // This would typically navigate to the disk scan view or start a scan
+            // Log the start of disk scan action
+            log_activity(
+                state.inner(),
+                "Análisis de discos iniciado".to_string(),
+                "Iniciando escaneo del sistema".to_string(),
+                ActivityType::ScanStarted,
+                "running".to_string(),
+                None,
+            ).await;
+            
+            // Return success - the frontend will navigate to the scan view
             Ok(QuickActionResult {
                 success: true,
                 message: "Navegando a la vista de análisis de discos...".to_string(),
