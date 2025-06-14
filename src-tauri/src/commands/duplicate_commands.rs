@@ -183,8 +183,8 @@ pub async fn get_duplicate_groups(
     };
     
     let mut result = HashMap::new();
-    result.insert("groups".to_string(), serde_json::to_value(groups).unwrap());
-    result.insert("summary".to_string(), serde_json::to_value(summary).unwrap());
+    result.insert("groups".to_string(), serde_json::to_value(&groups).map_err(|e| e.to_string())?);
+    result.insert("summary".to_string(), serde_json::to_value(&summary).map_err(|e| e.to_string())?);
     
     Ok(result)
 }

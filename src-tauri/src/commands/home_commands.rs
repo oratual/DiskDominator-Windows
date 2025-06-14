@@ -129,7 +129,10 @@ pub async fn get_system_overview(
         total_free_space += disk.available_space;
         
         disk_summaries.push(DiskSummary {
-            id: disk.name.chars().take(1).collect::<String>().to_uppercase(),
+            id: disk.drive_letter.clone().unwrap_or_else(|| {
+                // Fallback: extract drive letter from mount_point (e.g., "C:\\" -> "C")
+                disk.mount_point.chars().take(1).collect::<String>().to_uppercase()
+            }),
             label: disk.name.clone(),
             path: disk.mount_point.clone(),
             used,

@@ -24,6 +24,7 @@ pub struct DiskInfo {
     pub available_space: u64,
     pub used_space: u64,
     pub file_system: String,
+    pub drive_letter: Option<String>, // Just the letter, e.g., "C"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,6 +94,7 @@ async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
                     available_space: 500_000_000_000, // 500GB placeholder
                     used_space: 500_000_000_000,
                     file_system: "NTFS".to_string(),
+                    drive_letter: Some((letter as char).to_string()),
                 });
             }
         }
@@ -143,6 +145,7 @@ async fn get_disks_via_wmic() -> Result<Vec<DiskInfo>> {
                     available_space: free_space,
                     used_space,
                     file_system: filesystem.to_string(),
+                    drive_letter: Some(drive_letter.trim_end_matches(':').to_string()),
                 });
             }
         }
@@ -200,6 +203,7 @@ async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
                     available_space: free_space,
                     used_space,
                     file_system: filesystem.to_string(),
+                    drive_letter: Some(drive_letter.trim_end_matches(':').to_string()),
                 });
             }
         }
@@ -255,6 +259,7 @@ async fn get_disks_via_api_fallback() -> Result<Vec<DiskInfo>> {
                     available_space,
                     used_space,
                     file_system: "NTFS".to_string(), // Default assumption
+                    drive_letter: Some((letter as char).to_string()),
                 });
             }
         }
@@ -293,6 +298,7 @@ async fn get_drive_space(drive: &str) -> Result<DiskInfo> {
                     available_space: free_space,
                     used_space,
                     file_system: "NTFS".to_string(),
+                    drive_letter: Some(drive.chars().next().unwrap_or('C').to_string()),
                 });
             }
         }
@@ -350,6 +356,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
                 available_space,
                 used_space,
                 file_system: filesystem.to_string(),
+                drive_letter: None, // Unix systems don't have drive letters
             });
         }
     }
@@ -363,6 +370,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
             available_space: 0,
             used_space: 0,
             file_system: "unknown".to_string(),
+            drive_letter: None,
         });
     }
     
