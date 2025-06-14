@@ -40,13 +40,8 @@ impl AppState {
             activity_log: Arc::new(RwLock::new(std::collections::HashMap::new())),
         };
         
-        // Initialize with some sample activities for demo purposes
-        tokio::spawn({
-            let state = app_state.clone();
-            async move {
-                state.initialize_sample_activities().await;
-            }
-        });
+        // Don't initialize sample activities here - Tokio runtime isn't ready yet
+        // This will be done when the app starts properly
         
         app_state
     }

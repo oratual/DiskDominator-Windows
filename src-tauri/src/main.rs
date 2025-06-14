@@ -3,7 +3,7 @@
     windows_subsystem = "windows"
 )]
 
-// use tauri::Manager; // Not needed for current setup"
+use tauri::Manager;
 
 mod commands;
 mod file_system;
@@ -16,13 +16,41 @@ mod mft_scanner;
 mod tests;
 
 use app_state::AppState;
+use std::sync::Arc;
 
 fn main() {
-    // Initialize application state
-    let app_state = AppState::new();
-    
     tauri::Builder::default()
-        .manage(app_state)
+        .setup(|app| {
+            // Initialize application state within the Tauri context
+            let app_state = Arc::new(AppState::new());
+            app.manage(app_state.clone());
+            
+            // Now we can safely use tokio runtime for initialization
+            let app_state_clone = app_state.clone();
+            tauri::async_runtime::spawn(async move {
+                // Log initial disk detection
+                if let Ok(disks) = crate::file_system::get_system_disks().await {
+                    let disk_count = disks.len();
+                    if disk_count > 0 {
+                        crate::commands::home_commands::log_activity(
+                            &app_state_clone,
+                            format!("{} discos detectados", disk_count),
+                            format!("Sistema listo para análisis"),
+                            crate::commands::home_commands::ActivityType::ScanCompleted,
+                            "completed".to_string(),
+                            Some(crate::commands::home_commands::ActivityMetadata {
+                                size: None,
+                                count: Some(disk_count as u32),
+                                duration: None,
+                                error: None,
+                            }),
+                        ).await;
+                    }
+                }
+            });
+            
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             // Home and System commands
             commands::home_commands::get_system_overview,
