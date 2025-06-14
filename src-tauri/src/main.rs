@@ -5,12 +5,14 @@
 
 use tauri::Manager;
 
-mod commands;
-mod file_system;
-mod disk_analyzer;
 mod app_state;
-mod websocket;
+mod commands;
+mod disk_analyzer;
+mod error;
+mod file_system;
+mod logging;
 mod mft_scanner;
+mod websocket;
 
 #[cfg(test)]
 mod tests;
@@ -19,12 +21,19 @@ use app_state::AppState;
 use std::sync::Arc;
 
 fn main() {
+    // Inicializar logging antes que nada
+    if let Err(e) = logging::init_logging() {
+        eprintln!("Failed to initialize logging: {}", e);
+    }
+
     tauri::Builder::default()
         .setup(|app| {
+            tracing::info!("Initializing DiskDominator application");
+
             // Initialize application state within the Tauri context
             let app_state = Arc::new(AppState::new());
             app.manage(app_state.clone());
-            
+
             // Now we can safely use tokio runtime for initialization
             let app_state_clone = app_state.clone();
             tauri::async_runtime::spawn(async move {
@@ -35,7 +44,7 @@ fn main() {
                         crate::commands::home_commands::log_activity(
                             &app_state_clone,
                             format!("{} discos detectados", disk_count),
-                            format!("Sistema listo para análisis"),
+                            "Sistema listo para análisis".to_string(),
                             crate::commands::home_commands::ActivityType::ScanCompleted,
                             "completed".to_string(),
                             Some(crate::commands::home_commands::ActivityMetadata {
@@ -44,11 +53,12 @@ fn main() {
                                 duration: None,
                                 error: None,
                             }),
-                        ).await;
+                        )
+                        .await;
                     }
                 }
             });
-            
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

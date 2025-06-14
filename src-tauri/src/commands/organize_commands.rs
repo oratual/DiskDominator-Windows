@@ -1,10 +1,10 @@
-use std::path::Path;
-use std::fs;
-use std::time::SystemTime;
-use serde::{Serialize, Deserialize};
-use uuid::Uuid;
 use crate::app_state::AppState;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::time::SystemTime;
 use tauri::State;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrganizationRule {
@@ -67,7 +67,7 @@ pub struct PlanOperation {
     pub plan_id: String,
     pub sequence: u32,
     pub operation_type: String, // "move", "copy", "rename", "delete", "mkdir", "archive"
-    pub status: String, // "pending", "in_progress", "completed", "failed", "skipped"
+    pub status: String,         // "pending", "in_progress", "completed", "failed", "skipped"
     pub source: OperationSource,
     pub destination: OperationDestination,
     pub options: OperationOptions,
@@ -216,7 +216,7 @@ pub async fn analyze_directory_structure(
     _state: State<'_, AppState>,
 ) -> Result<DirectoryStructure, String> {
     let path = Path::new(&path);
-    
+
     if !path.exists() {
         return Err(format!("Path does not exist: {}", path.display()));
     }
@@ -225,14 +225,20 @@ pub async fn analyze_directory_structure(
         .map_err(|e| format!("Failed to analyze directory: {}", e))
 }
 
-fn analyze_directory_recursive(path: &Path, current_depth: u32, max_depth: u32) -> Result<DirectoryStructure, Box<dyn std::error::Error>> {
+fn analyze_directory_recursive(
+    path: &Path,
+    current_depth: u32,
+    max_depth: u32,
+) -> Result<DirectoryStructure, Box<dyn std::error::Error>> {
     let metadata = fs::metadata(path)?;
-    let name = path.file_name()
+    let name = path
+        .file_name()
         .unwrap_or_default()
         .to_string_lossy()
         .to_string();
-    
-    let modified = metadata.modified()
+
+    let modified = metadata
+        .modified()
         .unwrap_or(SystemTime::UNIX_EPOCH)
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap_or_default()
@@ -253,7 +259,9 @@ fn analyze_directory_recursive(path: &Path, current_depth: u32, max_depth: u32) 
                         total_size += child_metadata.len();
                     } else if child_metadata.is_dir() {
                         subdirectory_count += 1;
-                        if let Ok(child_structure) = analyze_directory_recursive(&entry_path, current_depth + 1, max_depth) {
+                        if let Ok(child_structure) =
+                            analyze_directory_recursive(&entry_path, current_depth + 1, max_depth)
+                        {
                             total_size += child_structure.size;
                             file_count += child_structure.file_count;
                             subdirectory_count += child_structure.subdirectory_count;
@@ -288,7 +296,7 @@ pub async fn create_organization_plan(
     _state: State<'_, AppState>,
 ) -> Result<OrganizationPlan, String> {
     let plan_id = Uuid::new_v4().to_string();
-    
+
     // Analyze the provided paths and generate operations based on rules
     let mut operations = Vec::new();
     let mut affected_paths = Vec::new();
@@ -305,7 +313,9 @@ pub async fn create_organization_plan(
             // Generate operations based on rules
             for rule in &rules {
                 if rule.enabled {
-                    if let Some(operation) = generate_operation_from_rule(&plan_id, i as u32, &structure, rule) {
+                    if let Some(operation) =
+                        generate_operation_from_rule(&plan_id, i as u32, &structure, rule)
+                    {
                         operations.push(operation);
                     }
                 }
@@ -369,15 +379,16 @@ fn generate_operation_from_rule(
     let matches = match rule.condition.condition_type.as_str() {
         "extension" => {
             if let Some(ext) = Path::new(&structure.path).extension() {
-                ext.to_string_lossy().to_lowercase() == rule.condition.value.as_str().unwrap_or("").to_lowercase()
+                ext.to_string_lossy().to_lowercase()
+                    == rule.condition.value.as_str().unwrap_or("").to_lowercase()
             } else {
                 false
             }
-        },
+        }
         "name_pattern" => {
             let pattern = rule.condition.value.as_str().unwrap_or("");
             structure.name.contains(pattern)
-        },
+        }
         "size_range" => {
             if let Some(threshold) = rule.condition.value.as_u64() {
                 match rule.condition.operator.as_str() {
@@ -388,7 +399,7 @@ fn generate_operation_from_rule(
             } else {
                 false
             }
-        },
+        }
         _ => false,
     };
 
@@ -396,9 +407,11 @@ fn generate_operation_from_rule(
         return None;
     }
 
-    let destination_path = rule.action.destination.clone().unwrap_or_else(|| {
-        format!("{}/organized", structure.path)
-    });
+    let destination_path = rule
+        .action
+        .destination
+        .clone()
+        .unwrap_or_else(|| format!("{}/organized", structure.path));
 
     Some(PlanOperation {
         id: Uuid::new_v4().to_string(),
@@ -454,12 +467,16 @@ pub async fn execute_organization_plan(
         id: execution_id,
         plan_id,
         started_at: chrono::Utc::now().to_rfc3339(),
-        completed_at: if is_dry_run { 
-            Some(chrono::Utc::now().to_rfc3339()) 
-        } else { 
-            None 
+        completed_at: if is_dry_run {
+            Some(chrono::Utc::now().to_rfc3339())
+        } else {
+            None
         },
-        status: if is_dry_run { "completed".to_string() } else { "running".to_string() },
+        status: if is_dry_run {
+            "completed".to_string()
+        } else {
+            "running".to_string()
+        },
         progress: ExecutionProgress {
             current_operation: 0,
             total_operations: 1,
@@ -582,7 +599,10 @@ pub async fn get_organization_suggestions(
                     id: Uuid::new_v4().to_string(),
                     suggestion_type: "group".to_string(),
                     title: format!("Organize files in {}", structure.name),
-                    description: format!("Group {} files by type in organized folders", structure.file_count),
+                    description: format!(
+                        "Group {} files by type in organized folders",
+                        structure.file_count
+                    ),
                     from_paths: vec![structure.path.clone()],
                     to_path: format!("{}/organized", structure.path),
                     affected_files: vec![], // Would be populated with actual files

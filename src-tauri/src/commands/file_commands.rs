@@ -1,9 +1,9 @@
+use crate::app_state::AppState;
+use crate::disk_analyzer::{DiskAnalyzer, DuplicateGroup, ScanConfig, ScanSession, ScanType};
+use crate::file_system::{DiskInfo, FileInfo};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tauri::State;
-use anyhow::Result;
-use crate::app_state::AppState;
-use crate::file_system::{FileInfo, DiskInfo};
-use crate::disk_analyzer::{DiskAnalyzer, ScanType, DuplicateGroup, ScanConfig, ScanSession};
 // use ai_module::OrganizeRules as AiOrganizeRules;
 // use ai_module::FileOperation as AiFileOperation;
 
@@ -55,7 +55,7 @@ pub async fn create_scan_session(
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
-    
+
     let scan_type_enum = match scan_type.as_str() {
         "quick" => ScanType::Quick,
         "deep" => ScanType::Deep,
@@ -85,7 +85,8 @@ pub async fn create_scan_session(
     let session_id = {
         let guard = state.current_analyzer.read().await;
         let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-        analyzer.create_scan_session(disk_path, scan_type_enum, config)
+        analyzer
+            .create_scan_session(disk_path, scan_type_enum, config)
             .await
             .map_err(|e| e.to_string())?
     };
@@ -101,7 +102,8 @@ pub async fn start_scan_session(
 ) -> Result<(), String> {
     let guard = state.current_analyzer.read().await;
     let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-    analyzer.start_scan_session(&session_id)
+    analyzer
+        .start_scan_session(&session_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -114,7 +116,8 @@ pub async fn pause_scan_session(
 ) -> Result<(), String> {
     let guard = state.current_analyzer.read().await;
     let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-    analyzer.pause_scan_session(&session_id)
+    analyzer
+        .pause_scan_session(&session_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -127,7 +130,8 @@ pub async fn resume_scan_session(
 ) -> Result<(), String> {
     let guard = state.current_analyzer.read().await;
     let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-    analyzer.resume_scan_session(&session_id)
+    analyzer
+        .resume_scan_session(&session_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -140,7 +144,8 @@ pub async fn cancel_scan_session(
 ) -> Result<(), String> {
     let guard = state.current_analyzer.read().await;
     let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-    analyzer.cancel_scan_session(&session_id)
+    analyzer
+        .cancel_scan_session(&session_id)
         .await
         .map_err(|e| e.to_string())
 }
@@ -174,34 +179,35 @@ pub async fn scan_disk(
     state: State<'_, AppState>,
 ) -> Result<Vec<FileInfo>, String> {
     let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
-    
+
     // Store analyzer for progress tracking
     {
         let mut current = state.current_analyzer.write().await;
         *current = Some(analyzer);
     }
-    
+
     // Perform the scan
     let files = {
         let guard = state.current_analyzer.read().await;
         let analyzer = guard.as_ref().ok_or("Analyzer not initialized")?;
-        analyzer.scan_directory(&path, &options)
+        analyzer
+            .scan_directory(&path, &options)
             .await
             .map_err(|e| e.to_string())?
     };
-    
+
     // Store results in app state for later use
     {
         let mut storage = state.storage.write().await;
         storage.scan_results.insert(path.clone(), files.clone());
     }
-    
+
     // Clear current analyzer
     {
         let mut current = state.current_analyzer.write().await;
         *current = None;
     }
-    
+
     Ok(files)
 }
 
@@ -221,7 +227,7 @@ pub async fn get_large_files(
 ) -> Result<Vec<FileInfo>, String> {
     let storage = state.storage.read().await;
     let min_size_bytes = min_size_mb * 1024 * 1024;
-    
+
     // Filter files from scan results that are larger than threshold
     let mut large_files = Vec::new();
     for files in storage.scan_results.values() {
@@ -231,32 +237,31 @@ pub async fn get_large_files(
             }
         }
     }
-    
+
     // Sort by size descending
     large_files.sort_by(|a, b| b.size.cmp(&a.size));
-    
+
     Ok(large_files)
 }
 
 /// Find duplicate files
 #[tauri::command]
-pub async fn find_duplicates(
-    state: State<'_, AppState>,
-) -> Result<Vec<DuplicateGroup>, String> {
+pub async fn find_duplicates(state: State<'_, AppState>) -> Result<Vec<DuplicateGroup>, String> {
     let analyzer = DiskAnalyzer::new(state.websocket_manager.clone());
-    
+
     // Get all files from stored scan results
     let storage = state.storage.read().await;
     let mut all_files = Vec::new();
     for files in storage.scan_results.values() {
         all_files.extend(files.clone());
     }
-    
+
     if all_files.is_empty() {
         return Ok(Vec::new());
     }
-    
-    analyzer.find_duplicates(all_files)
+
+    analyzer
+        .find_duplicates(all_files)
         .await
         .map_err(|e| e.to_string())
 }
@@ -271,10 +276,10 @@ pub async fn organize_files(
 ) -> Result<Vec<FileOperation>, String> {
     // Temporarily return empty suggestions until AI module is available
     Ok(Vec::new())
-    
+
     // Original implementation commented out:
     // let ai = state.ai.read().await;
-    // 
+    //
     // // Convert our rules to AI module rules
     // let ai_rules = AiOrganizeRules {
     //     by_extension: rules.by_extension,
@@ -282,19 +287,19 @@ pub async fn organize_files(
     //     by_size: rules.by_size,
     //     custom_rules: rules.custom_rules,
     // };
-    // 
+    //
     // // Use AI to suggest organization
     // let ai_suggestions = ai.suggest_organization(&source_path, &ai_rules)
     //     .await
     //     .map_err(|e| e.to_string())?;
-    // 
+    //
     // // Convert AI file operations to our file operations
     // let suggestions = ai_suggestions.into_iter().map(|op| FileOperation {
     //     operation: op.operation,
     //     source: op.source,
     //     destination: op.destination,
     // }).collect();
-    // 
+    //
     // Ok(suggestions)
 }
 
@@ -334,6 +339,6 @@ pub async fn perform_file_operation(
         }
         _ => return Err("Unknown operation".to_string()),
     }
-    
+
     Ok(true)
 }

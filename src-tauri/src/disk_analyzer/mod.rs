@@ -1,18 +1,18 @@
-use serde::{Deserialize, Serialize};
+use crate::commands::file_commands::ScanOptions;
+use crate::file_system::FileInfo;
+use crate::websocket::{ScanProgressMessage, WebSocketManager};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use tokio::sync::{mpsc, Mutex, RwLock};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::fs;
 use tokio::io::{AsyncReadExt, BufReader};
-use sha2::{Sha256, Digest};
-use std::time::{Duration, Instant};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use uuid::Uuid;
-use crate::file_system::FileInfo;
-use crate::commands::file_commands::ScanOptions;
-use crate::websocket::{WebSocketManager, ScanProgressMessage};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ScanType {
@@ -23,10 +23,10 @@ pub enum ScanType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DuplicateStrategy {
-    HashOnly,        // SHA-256 hash comparison (most accurate, slowest)
-    NameAndSize,     // Name + size comparison (fast, less accurate)
+    HashOnly,            // SHA-256 hash comparison (most accurate, slowest)
+    NameAndSize,         // Name + size comparison (fast, less accurate)
     NameSizePartialHash, // Name + size + partial hash (balanced)
-    SmartDetection,  // Adaptive based on file size and type
+    SmartDetection,      // Adaptive based on file size and type
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,14 +128,14 @@ impl DiskAnalyzer {
     pub async fn get_statistics(&self) -> AnalyzerStatistics {
         // Get current progress stats
         let progress = self.progress.lock().await;
-        
+
         // For now, return current scan statistics
         // TODO: Implement proper result storage
         AnalyzerStatistics {
             duplicates_count: 0, // Will be populated when duplicate detection runs
             duplicate_size: 0,
             large_files_count: progress.total_files as usize, // Approximate for now
-            last_scan_time: Some(chrono::Utc::now()), // Current time as we're scanning
+            last_scan_time: Some(chrono::Utc::now()),         // Current time as we're scanning
         }
     }
     pub fn new(websocket_manager: Arc<WebSocketManager>) -> Self {
@@ -209,8 +209,10 @@ impl DiskAnalyzer {
             ScanType::Deep => "deep",
             ScanType::Custom => "custom",
         };
-        
-        self.websocket_manager.start_scan_session(disk_path, scan_type_str.to_string()).await?;
+
+        self.websocket_manager
+            .start_scan_session(disk_path, scan_type_str.to_string())
+            .await?;
 
         Ok(session_id)
     }
@@ -219,9 +221,10 @@ impl DiskAnalyzer {
     pub async fn start_scan_session(&self, session_id: &str) -> Result<()> {
         let session = {
             let mut sessions = self.active_sessions.write().await;
-            let session = sessions.get_mut(session_id)
+            let session = sessions
+                .get_mut(session_id)
                 .ok_or_else(|| anyhow::anyhow!("Session not found"))?;
-            
+
             session.status = ScanSessionStatus::Running;
             session.started_at = Some(chrono::Utc::now());
             session.clone()
@@ -232,7 +235,7 @@ impl DiskAnalyzer {
         self.should_cancel.store(false, Ordering::SeqCst);
         self.files_processed.store(0, Ordering::SeqCst);
         self.bytes_processed.store(0, Ordering::SeqCst);
-        
+
         {
             let mut start_time = self.scan_start_time.lock().await;
             *start_time = Some(Instant::now());
@@ -247,7 +250,7 @@ impl DiskAnalyzer {
     /// Pause a scan session
     pub async fn pause_scan_session(&self, session_id: &str) -> Result<()> {
         self.is_paused.store(true, Ordering::SeqCst);
-        
+
         {
             let mut sessions = self.active_sessions.write().await;
             if let Some(session) = sessions.get_mut(session_id) {
@@ -256,14 +259,16 @@ impl DiskAnalyzer {
             }
         }
 
-        self.websocket_manager.pause_scan_session(session_id).await?;
+        self.websocket_manager
+            .pause_scan_session(session_id)
+            .await?;
         Ok(())
     }
 
     /// Resume a scan session
     pub async fn resume_scan_session(&self, session_id: &str) -> Result<()> {
         self.is_paused.store(false, Ordering::SeqCst);
-        
+
         {
             let mut sessions = self.active_sessions.write().await;
             if let Some(session) = sessions.get_mut(session_id) {
@@ -272,14 +277,16 @@ impl DiskAnalyzer {
             }
         }
 
-        self.websocket_manager.resume_scan_session(session_id).await?;
+        self.websocket_manager
+            .resume_scan_session(session_id)
+            .await?;
         Ok(())
     }
 
     /// Cancel a scan session
     pub async fn cancel_scan_session(&self, session_id: &str) -> Result<()> {
         self.should_cancel.store(true, Ordering::SeqCst);
-        
+
         {
             let mut sessions = self.active_sessions.write().await;
             if let Some(session) = sessions.get_mut(session_id) {
@@ -316,8 +323,10 @@ impl DiskAnalyzer {
 
         // Phase 1: Quick scan (metadata only)
         self.update_session_phase(session_id, "quick").await?;
-        let quick_files = self.perform_quick_scan(session_id, &session.disk_path, &session.config).await?;
-        
+        let quick_files = self
+            .perform_quick_scan(session_id, &session.disk_path, &session.config)
+            .await?;
+
         if self.should_cancel.load(Ordering::SeqCst) {
             return Ok(());
         }
@@ -329,7 +338,8 @@ impl DiskAnalyzer {
         // Phase 2: Deep scan (if requested)
         if matches!(session.scan_type, ScanType::Deep | ScanType::Custom) {
             self.update_session_phase(session_id, "deep").await?;
-            self.perform_deep_scan(session_id, &mut results, &session.config).await?;
+            self.perform_deep_scan(session_id, &mut results, &session.config)
+                .await?;
         }
 
         if self.should_cancel.load(Ordering::SeqCst) {
@@ -342,11 +352,11 @@ impl DiskAnalyzer {
 
         Ok(())
     }
-    
+
     pub async fn get_progress(&self) -> ScanProgress {
         self.progress.lock().await.clone()
     }
-    
+
     /// Perform quick scan (metadata only) - MFT optimized for Windows
     async fn perform_quick_scan(
         &self,
@@ -359,15 +369,19 @@ impl DiskAnalyzer {
         {
             if crate::mft_scanner::MftScanner::is_mft_available() {
                 if let Ok(drive_letter) = Self::extract_drive_letter(path) {
-                    if let Ok(mft_result) = crate::mft_scanner::MftScanner::scan_mft(&drive_letter).await {
+                    if let Ok(mft_result) =
+                        crate::mft_scanner::MftScanner::scan_mft(&drive_letter).await
+                    {
                         tracing::info!(
-                            "MFT scan completed: {} files in {}ms", 
-                            mft_result.total_files, 
+                            "MFT scan completed: {} files in {}ms",
+                            mft_result.total_files,
                             mft_result.scan_duration_ms
                         );
-                        
+
                         // Convert MFT results to FileInfo
-                        let files = mft_result.files.into_iter()
+                        let files = mft_result
+                            .files
+                            .into_iter()
                             .filter(|f| !Self::should_exclude_file(&f.path, config))
                             .map(|mft_file| {
                                 let extension = std::path::Path::new(&mft_file.path)
@@ -378,26 +392,32 @@ impl DiskAnalyzer {
                                     path: mft_file.path,
                                     name: mft_file.name,
                                     size: mft_file.size,
-                                    modified: chrono::DateTime::from_timestamp(mft_file.modified as i64, 0)
-                                        .unwrap_or_else(|| chrono::Utc::now()),
-                                    created: chrono::DateTime::from_timestamp(mft_file.created as i64, 0)
-                                        .unwrap_or_else(|| chrono::Utc::now()),
+                                    modified: chrono::DateTime::from_timestamp(
+                                        mft_file.modified as i64,
+                                        0,
+                                    )
+                                    .unwrap_or_else(|| chrono::Utc::now()),
+                                    created: chrono::DateTime::from_timestamp(
+                                        mft_file.created as i64,
+                                        0,
+                                    )
+                                    .unwrap_or_else(|| chrono::Utc::now()),
                                     is_directory: mft_file.is_directory,
                                     extension,
                                     hash: None,
                                 }
                             })
                             .collect::<Vec<_>>();
-                        
+
                         // Send progress updates
                         self.send_mft_progress_updates(session_id, &files).await;
-                        
+
                         return Ok(files);
                     }
                 }
             }
         }
-        
+
         // Fallback to regular scanning
         let path = PathBuf::from(path);
         let (tx, mut rx) = mpsc::channel::<FileInfo>(1000);
@@ -407,7 +427,7 @@ impl DiskAnalyzer {
         let websocket_manager = self.websocket_manager.clone();
         let is_paused = self.is_paused.clone();
         let should_cancel = self.should_cancel.clone();
-        
+
         // Reset progress
         {
             let mut prog = progress.lock().await;
@@ -416,7 +436,7 @@ impl DiskAnalyzer {
             prog.total_size = 0;
             prog.errors.clear();
         }
-        
+
         // Spawn task to scan directory
         let scan_task = tokio::spawn(async move {
             Self::scan_recursive_quick(
@@ -428,18 +448,19 @@ impl DiskAnalyzer {
                 websocket_manager,
                 is_paused,
                 should_cancel,
-            ).await
+            )
+            .await
         });
-        
+
         // Collect results
         let mut files = Vec::new();
         while let Some(file) = rx.recv().await {
             files.push(file);
         }
-        
+
         // Wait for scan to complete
         scan_task.await??;
-        
+
         Ok(files)
     }
 
@@ -455,99 +476,116 @@ impl DiskAnalyzer {
         }
 
         let total_files = results.files.len();
-        
+
         // Filter files for hashing (only files above threshold)
-        let files_to_hash: Vec<_> = results.files.iter()
+        let files_to_hash: Vec<_> = results
+            .files
+            .iter()
             .enumerate()
             .filter(|(_, file)| file.size > 1024 * 1024) // 1MB threshold
             .collect();
-        
+
         let total_hash_files = files_to_hash.len();
-        
+
         if total_hash_files == 0 {
             return Ok(());
         }
 
         // Use parallel processing for hash calculation
         let (hash_tx, mut hash_rx) = tokio::sync::mpsc::channel::<(usize, String, String)>(100);
-        
+
         // Spawn parallel hash calculation task
-        let files_for_hashing = files_to_hash.iter()
+        let files_for_hashing = files_to_hash
+            .iter()
             .map(|(idx, file)| (*idx, file.path.clone(), file.size))
             .collect::<Vec<_>>();
-        
+
         let hash_tx_clone = hash_tx.clone();
         let is_paused = self.is_paused.clone();
         let should_cancel = self.should_cancel.clone();
-        
+
         tokio::spawn(async move {
             use rayon::prelude::*;
-            
+
             // Use Rayon for parallel hash computation
             files_for_hashing.par_iter().for_each(|(idx, path, size)| {
                 // Check for pause/cancel in parallel threads
                 while is_paused.load(Ordering::SeqCst) {
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
-                
+
                 if should_cancel.load(Ordering::SeqCst) {
                     return;
                 }
-                
+
                 // Calculate hash
                 if let Ok(hash) = Self::calculate_file_hash_sync(path) {
                     let _ = hash_tx_clone.try_send((*idx, path.clone(), hash));
                 }
             });
         });
-        
+
         drop(hash_tx); // Close sender to signal completion
-        
+
         // Collect hash results
         let mut hash_groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
         let mut processed = 0;
-        
+
         while let Some((file_idx, _path, hash)) = hash_rx.recv().await {
             if let Some(file) = results.files.get_mut(file_idx) {
                 file.hash = Some(hash.clone());
-                hash_groups.entry(hash).or_insert_with(Vec::new).push(file.clone());
+                hash_groups
+                    .entry(hash)
+                    .or_default()
+                    .push(file.clone());
             }
-            
+
             processed += 1;
             let progress_percent = (processed as f64 / total_hash_files as f64) * 100.0;
-            
+
             // Update progress every 10 files to avoid spam
             if processed % 10 == 0 || processed == total_hash_files {
-                let _ = self.websocket_manager.update_scan_progress(
-                    session_id,
-                    ScanProgressMessage {
-                        scan_id: session_id.to_string(),
-                        disk_id: "deep_scan".to_string(),
-                        scan_type: "deep".to_string(),
-                        progress: progress_percent,
-                        quick_scan_progress: Some(100.0),
-                        deep_scan_progress: Some(progress_percent),
-                        remaining_time: self.estimate_remaining_time(processed, total_hash_files).await,
-                        files_scanned: processed as u64,
-                        total_files: total_hash_files as u64,
-                        bytes_scanned: self.bytes_processed.load(Ordering::SeqCst),
-                        total_bytes: results.total_size,
-                        current_path: results.files.get(file_idx)
-                            .map(|f| f.path.clone())
-                            .unwrap_or_default(),
-                        scan_status: "running".to_string(),
-                        errors: Vec::new(),
-                    },
-                ).await;
+                let _ = self
+                    .websocket_manager
+                    .update_scan_progress(
+                        session_id,
+                        ScanProgressMessage {
+                            scan_id: session_id.to_string(),
+                            disk_id: "deep_scan".to_string(),
+                            scan_type: "deep".to_string(),
+                            progress: progress_percent,
+                            quick_scan_progress: Some(100.0),
+                            deep_scan_progress: Some(progress_percent),
+                            remaining_time: self
+                                .estimate_remaining_time(processed, total_hash_files)
+                                .await,
+                            files_scanned: processed as u64,
+                            total_files: total_hash_files as u64,
+                            bytes_scanned: self.bytes_processed.load(Ordering::SeqCst),
+                            total_bytes: results.total_size,
+                            current_path: results
+                                .files
+                                .get(file_idx)
+                                .map(|f| f.path.clone())
+                                .unwrap_or_default(),
+                            scan_status: "running".to_string(),
+                            errors: Vec::new(),
+                        },
+                    )
+                    .await;
             }
         }
 
         // Find duplicates using the configured strategy
-        let duplicate_groups = self.find_duplicates_by_strategy(&results.files, config).await?;
+        let duplicate_groups = self
+            .find_duplicates_by_strategy(&results.files, config)
+            .await?;
         results.duplicate_groups = duplicate_groups;
 
         // Sort duplicate groups by potential savings
-        results.duplicate_groups.sort_by(|a, b| b.potential_savings.cmp(&a.potential_savings));
+        results
+            .duplicate_groups
+            .sort_by(|a, b| b.potential_savings.cmp(&a.potential_savings));
 
         // Analyze large files with advanced filtering
         results.large_files = self.analyze_large_files(&results.files, config).await;
@@ -556,11 +594,7 @@ impl DiskAnalyzer {
     }
 
     /// Scan directory and return file information with real-time progress (backward compatibility)
-    pub async fn scan_directory(
-        &self,
-        path: &str,
-        options: &ScanOptions,
-    ) -> Result<Vec<FileInfo>> {
+    pub async fn scan_directory(&self, path: &str, options: &ScanOptions) -> Result<Vec<FileInfo>> {
         // Convert old ScanOptions to new ScanConfig
         let config = ScanConfig {
             exclude_patterns: options.exclude_patterns.clone(),
@@ -576,14 +610,12 @@ impl DiskAnalyzer {
         };
 
         // Create a temporary session for backward compatibility
-        let session_id = self.create_scan_session(
-            path.to_string(),
-            ScanType::Quick,
-            config,
-        ).await?;
+        let session_id = self
+            .create_scan_session(path.to_string(), ScanType::Quick, config)
+            .await?;
 
         self.start_scan_session(&session_id).await?;
-        
+
         // Wait for completion and return results
         loop {
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -600,7 +632,7 @@ impl DiskAnalyzer {
             }
         }
     }
-    
+
     async fn scan_recursive_quick(
         path: PathBuf,
         tx: mpsc::Sender<FileInfo>,
@@ -612,29 +644,30 @@ impl DiskAnalyzer {
         should_cancel: Arc<AtomicBool>,
     ) -> Result<()> {
         let mut entries = fs::read_dir(&path).await?;
-        
+
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
             let metadata = match entry.metadata().await {
                 Ok(m) => m,
                 Err(e) => {
                     let mut prog = progress.lock().await;
-                    prog.errors.push(format!("Error reading {}: {}", path.display(), e));
+                    prog.errors
+                        .push(format!("Error reading {}: {}", path.display(), e));
                     continue;
                 }
             };
-            
+
             // Update current path
             {
                 let mut prog = progress.lock().await;
                 prog.current_path = path.to_string_lossy().to_string();
             }
-            
+
             // Check for pause/cancel
             while is_paused.load(Ordering::SeqCst) {
                 tokio::time::sleep(Duration::from_millis(100)).await;
             }
-            
+
             if should_cancel.load(Ordering::SeqCst) {
                 return Ok(());
             }
@@ -644,15 +677,18 @@ impl DiskAnalyzer {
             if config.exclude_patterns.iter().any(|p| path_str.contains(p)) {
                 continue;
             }
-            
+
             // Check if hidden files should be included
-            if !config.include_hidden && path.file_name()
-                .and_then(|n| n.to_str())
-                .map(|n| n.starts_with('.'))
-                .unwrap_or(false) {
+            if !config.include_hidden
+                && path
+                    .file_name()
+                    .and_then(|n| n.to_str())
+                    .map(|n| n.starts_with('.'))
+                    .unwrap_or(false)
+            {
                 continue;
             }
-            
+
             if metadata.is_dir() {
                 // Recursively scan subdirectory
                 if let Err(e) = Box::pin(Self::scan_recursive_quick(
@@ -664,32 +700,42 @@ impl DiskAnalyzer {
                     websocket_manager.clone(),
                     is_paused.clone(),
                     should_cancel.clone(),
-                )).await {
+                ))
+                .await
+                {
                     let mut prog = progress.lock().await;
-                    prog.errors.push(format!("Error scanning directory {}: {}", path.display(), e));
+                    prog.errors.push(format!(
+                        "Error scanning directory {}: {}",
+                        path.display(),
+                        e
+                    ));
                 }
             } else if metadata.is_file() {
                 // Process file
                 let file_info = FileInfo {
                     path: path.to_string_lossy().to_string(),
-                    name: path.file_name()
+                    name: path
+                        .file_name()
                         .unwrap_or_default()
                         .to_string_lossy()
                         .to_string(),
                     size: metadata.len(),
-                    modified: metadata.modified()
+                    modified: metadata
+                        .modified()
                         .unwrap_or(std::time::SystemTime::now())
                         .into(),
-                    created: metadata.created()
+                    created: metadata
+                        .created()
                         .unwrap_or(std::time::SystemTime::now())
                         .into(),
                     is_directory: false,
-                    extension: path.extension()
+                    extension: path
+                        .extension()
                         .and_then(|e| e.to_str())
                         .map(|e| e.to_string()),
                     hash: None,
                 };
-                
+
                 // Update progress
                 let (processed, total, current_size) = {
                     let mut prog = progress.lock().await;
@@ -702,57 +748,66 @@ impl DiskAnalyzer {
 
                 // Send progress update via WebSocket (every 100 files to avoid spam)
                 if processed % 100 == 0 {
-                    let progress_percent = if total > 0 { (processed as f64 / total as f64) * 100.0 } else { 0.0 };
-                    let _ = websocket_manager.update_scan_progress(
-                        &session_id,
-                        ScanProgressMessage {
-                            scan_id: session_id.clone(),
-                            disk_id: "unknown".to_string(),
-                            scan_type: "quick".to_string(),
-                            progress: progress_percent,
-                            quick_scan_progress: Some(progress_percent),
-                            deep_scan_progress: None,
-                            remaining_time: 0, // TODO: Calculate estimate
-                            files_scanned: processed,
-                            total_files: total,
-                            bytes_scanned: current_size,
-                            total_bytes: current_size,
-                            current_path: file_info.path.clone(),
-                            scan_status: "running".to_string(),
-                            errors: Vec::new(),
-                        },
-                    ).await;
+                    let progress_percent = if total > 0 {
+                        (processed as f64 / total as f64) * 100.0
+                    } else {
+                        0.0
+                    };
+                    let _ = websocket_manager
+                        .update_scan_progress(
+                            &session_id,
+                            ScanProgressMessage {
+                                scan_id: session_id.clone(),
+                                disk_id: "unknown".to_string(),
+                                scan_type: "quick".to_string(),
+                                progress: progress_percent,
+                                quick_scan_progress: Some(progress_percent),
+                                deep_scan_progress: None,
+                                remaining_time: 0, // TODO: Calculate estimate
+                                files_scanned: processed,
+                                total_files: total,
+                                bytes_scanned: current_size,
+                                total_bytes: current_size,
+                                current_path: file_info.path.clone(),
+                                scan_status: "running".to_string(),
+                                errors: Vec::new(),
+                            },
+                        )
+                        .await;
                 }
-                
+
                 // Send file info
                 if tx.send(file_info).await.is_err() {
                     break; // Receiver dropped
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// Find duplicate files
     pub async fn find_duplicates(&self, mut files: Vec<FileInfo>) -> Result<Vec<DuplicateGroup>> {
         let mut hash_groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
-        
+
         // Calculate hashes for all files
         for file in &mut files {
             if let Ok(hash) = self.calculate_file_hash(&file.path).await {
                 file.hash = Some(hash.clone());
-                hash_groups.entry(hash).or_insert_with(Vec::new).push(file.clone());
+                hash_groups
+                    .entry(hash)
+                    .or_default()
+                    .push(file.clone());
             }
         }
-        
+
         // Find groups with duplicates
         let mut duplicate_groups = Vec::new();
         for (hash, group) in hash_groups {
             if group.len() > 1 {
                 let total_size: u64 = group.iter().map(|f| f.size).sum();
                 let potential_savings = total_size - group[0].size;
-                
+
                 duplicate_groups.push(DuplicateGroup {
                     hash,
                     files: group,
@@ -761,22 +816,22 @@ impl DiskAnalyzer {
                 });
             }
         }
-        
+
         // Sort by potential savings
         duplicate_groups.sort_by(|a, b| b.potential_savings.cmp(&a.potential_savings));
-        
+
         Ok(duplicate_groups)
     }
-    
+
     /// Calculate SHA256 hash for a file (async version)
     async fn calculate_file_hash(&self, path: &str) -> Result<String> {
         const BUFFER_SIZE: usize = 65536; // 64KB buffer
-        
+
         let file = fs::File::open(path).await?;
         let mut reader = BufReader::with_capacity(BUFFER_SIZE, file);
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; BUFFER_SIZE];
-        
+
         loop {
             let bytes_read = reader.read(&mut buffer).await?;
             if bytes_read == 0 {
@@ -784,22 +839,22 @@ impl DiskAnalyzer {
             }
             hasher.update(&buffer[..bytes_read]);
         }
-        
+
         let result = hasher.finalize();
         Ok(format!("{:x}", result))
     }
-    
+
     /// Calculate SHA256 hash for a file (sync version for parallel processing)
     fn calculate_file_hash_sync(path: &str) -> Result<String> {
         use std::fs::File;
         use std::io::Read;
-        
+
         const BUFFER_SIZE: usize = 65536; // 64KB buffer
-        
+
         let mut file = File::open(path)?;
         let mut hasher = Sha256::new();
         let mut buffer = vec![0u8; BUFFER_SIZE];
-        
+
         loop {
             let bytes_read = file.read(&mut buffer)?;
             if bytes_read == 0 {
@@ -807,7 +862,7 @@ impl DiskAnalyzer {
             }
             hasher.update(&buffer[..bytes_read]);
         }
-        
+
         let result = hasher.finalize();
         Ok(format!("{:x}", result))
     }
@@ -836,7 +891,9 @@ impl DiskAnalyzer {
             }
         }
 
-        self.websocket_manager.complete_scan_session(session_id).await?;
+        self.websocket_manager
+            .complete_scan_session(session_id)
+            .await?;
         Ok(())
     }
 
@@ -857,7 +914,7 @@ impl DiskAnalyzer {
             0
         }
     }
-    
+
     /// Extract drive letter from path (Windows)
     #[cfg(target_os = "windows")]
     fn extract_drive_letter(path: &str) -> Result<String> {
@@ -866,20 +923,23 @@ impl DiskAnalyzer {
                 return Ok(first_char.to_string().to_uppercase());
             }
         }
-        Err(anyhow::anyhow!("Could not extract drive letter from path: {}", path))
+        Err(anyhow::anyhow!(
+            "Could not extract drive letter from path: {}",
+            path
+        ))
     }
-    
+
     /// Check if file should be excluded based on config
     fn should_exclude_file(path: &str, config: &ScanConfig) -> bool {
         let path_lower = path.to_lowercase();
-        
+
         // Check user-defined exclusions
         for pattern in &config.exclude_patterns {
             if path_lower.contains(&pattern.to_lowercase()) {
                 return true;
             }
         }
-        
+
         // Check if hidden files should be excluded
         if !config.include_hidden {
             if let Some(file_name) = std::path::Path::new(path).file_name() {
@@ -890,40 +950,44 @@ impl DiskAnalyzer {
                 }
             }
         }
-        
+
         false
     }
-    
+
     /// Send MFT scan progress updates via WebSocket
     async fn send_mft_progress_updates(&self, session_id: &str, files: &[FileInfo]) {
         let file_count = files.len();
         let total_size: u64 = files.iter().map(|f| f.size).sum();
-        
+
         // Send progress in chunks to show realistic progress
         let chunk_size = 1000;
         for (i, chunk) in files.chunks(chunk_size).enumerate() {
-            let progress = ((i + 1) * chunk_size).min(file_count) as f64 / file_count as f64 * 100.0;
-            
-            let _ = self.websocket_manager.update_scan_progress(
-                session_id,
-                ScanProgressMessage {
-                    scan_id: session_id.to_string(),
-                    disk_id: "mft_scan".to_string(),
-                    scan_type: "quick".to_string(),
-                    progress,
-                    quick_scan_progress: Some(progress),
-                    deep_scan_progress: None,
-                    remaining_time: 0, // MFT scan is very fast
-                    files_scanned: ((i + 1) * chunk_size).min(file_count) as u64,
-                    total_files: file_count as u64,
-                    bytes_scanned: chunk.iter().map(|f| f.size).sum::<u64>(),
-                    total_bytes: total_size,
-                    current_path: chunk.first().map(|f| f.path.clone()).unwrap_or_default(),
-                    scan_status: "running".to_string(),
-                    errors: Vec::new(),
-                },
-            ).await;
-            
+            let progress =
+                ((i + 1) * chunk_size).min(file_count) as f64 / file_count as f64 * 100.0;
+
+            let _ = self
+                .websocket_manager
+                .update_scan_progress(
+                    session_id,
+                    ScanProgressMessage {
+                        scan_id: session_id.to_string(),
+                        disk_id: "mft_scan".to_string(),
+                        scan_type: "quick".to_string(),
+                        progress,
+                        quick_scan_progress: Some(progress),
+                        deep_scan_progress: None,
+                        remaining_time: 0, // MFT scan is very fast
+                        files_scanned: ((i + 1) * chunk_size).min(file_count) as u64,
+                        total_files: file_count as u64,
+                        bytes_scanned: chunk.iter().map(|f| f.size).sum::<u64>(),
+                        total_bytes: total_size,
+                        current_path: chunk.first().map(|f| f.path.clone()).unwrap_or_default(),
+                        scan_status: "running".to_string(),
+                        errors: Vec::new(),
+                    },
+                )
+                .await;
+
             // Small delay to make progress visible
             tokio::time::sleep(Duration::from_millis(50)).await;
         }
@@ -938,7 +1002,9 @@ impl DiskAnalyzer {
         match config.duplicate_strategy {
             DuplicateStrategy::HashOnly => self.find_duplicates_by_hash(files).await,
             DuplicateStrategy::NameAndSize => self.find_duplicates_by_name_size(files).await,
-            DuplicateStrategy::NameSizePartialHash => self.find_duplicates_by_name_size_partial_hash(files).await,
+            DuplicateStrategy::NameSizePartialHash => {
+                self.find_duplicates_by_name_size_partial_hash(files).await
+            }
             DuplicateStrategy::SmartDetection => self.find_duplicates_smart(files, config).await,
         }
     }
@@ -950,7 +1016,10 @@ impl DiskAnalyzer {
         // Group files by hash
         for file in files {
             if let Some(hash) = &file.hash {
-                hash_groups.entry(hash.clone()).or_insert_with(Vec::new).push(file.clone());
+                hash_groups
+                    .entry(hash.clone())
+                    .or_default()
+                    .push(file.clone());
             }
         }
 
@@ -975,13 +1044,19 @@ impl DiskAnalyzer {
     }
 
     /// Find duplicates by name and size (fast but less accurate)
-    async fn find_duplicates_by_name_size(&self, files: &[FileInfo]) -> Result<Vec<DuplicateGroup>> {
+    async fn find_duplicates_by_name_size(
+        &self,
+        files: &[FileInfo],
+    ) -> Result<Vec<DuplicateGroup>> {
         let mut name_size_groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
 
         // Group files by name+size combination
         for file in files {
             let key = format!("{}:{}", file.name, file.size);
-            name_size_groups.entry(key).or_insert_with(Vec::new).push(file.clone());
+            name_size_groups
+                .entry(key)
+                .or_default()
+                .push(file.clone());
         }
 
         // Find groups with duplicates
@@ -1005,13 +1080,19 @@ impl DiskAnalyzer {
     }
 
     /// Find duplicates by name, size and partial hash (balanced approach)
-    async fn find_duplicates_by_name_size_partial_hash(&self, files: &[FileInfo]) -> Result<Vec<DuplicateGroup>> {
+    async fn find_duplicates_by_name_size_partial_hash(
+        &self,
+        files: &[FileInfo],
+    ) -> Result<Vec<DuplicateGroup>> {
         let mut candidate_groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
 
         // First pass: group by name+size
         for file in files {
             let key = format!("{}:{}", file.name, file.size);
-            candidate_groups.entry(key).or_insert_with(Vec::new).push(file.clone());
+            candidate_groups
+                .entry(key)
+                .or_default()
+                .push(file.clone());
         }
 
         // Second pass: calculate partial hash for candidates with multiple files
@@ -1029,16 +1110,27 @@ impl DiskAnalyzer {
     }
 
     /// Smart duplicate detection (adaptive strategy)
-    async fn find_duplicates_smart(&self, files: &[FileInfo], config: &ScanConfig) -> Result<Vec<DuplicateGroup>> {
+    async fn find_duplicates_smart(
+        &self,
+        files: &[FileInfo],
+        config: &ScanConfig,
+    ) -> Result<Vec<DuplicateGroup>> {
         let mut all_duplicates = Vec::new();
 
         // Separate files by size thresholds
-        let (small_files, medium_files, large_files): (Vec<_>, Vec<_>, Vec<_>) = files.iter()
-            .cloned()
-            .partition_into_three(|f| {
-                if f.size < 1024 * 1024 { 0 } // < 1MB
-                else if f.size < 100 * 1024 * 1024 { 1 } // < 100MB
-                else { 2 } // >= 100MB
+        let (small_files, medium_files, large_files): (Vec<_>, Vec<_>, Vec<_>) =
+            files.iter().cloned().partition_into_three(|f| {
+                if f.size < 1024 * 1024 {
+                    0
+                }
+                // < 1MB
+                else if f.size < 100 * 1024 * 1024 {
+                    1
+                }
+                // < 100MB
+                else {
+                    2
+                } // >= 100MB
             });
 
         // Small files: Use name+size (fast)
@@ -1049,7 +1141,9 @@ impl DiskAnalyzer {
 
         // Medium files: Use name+size+partial hash (balanced)
         if !medium_files.is_empty() {
-            let medium_duplicates = self.find_duplicates_by_name_size_partial_hash(&medium_files).await?;
+            let medium_duplicates = self
+                .find_duplicates_by_name_size_partial_hash(&medium_files)
+                .await?;
             all_duplicates.extend(medium_duplicates);
         }
 
@@ -1068,14 +1162,17 @@ impl DiskAnalyzer {
     }
 
     /// Verify candidate duplicates with partial hash
-    async fn verify_candidates_with_partial_hash(&self, candidates: Vec<FileInfo>) -> Result<Vec<DuplicateGroup>> {
+    async fn verify_candidates_with_partial_hash(
+        &self,
+        candidates: Vec<FileInfo>,
+    ) -> Result<Vec<DuplicateGroup>> {
         let mut hash_groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
 
         // Calculate partial hash for each candidate
         for file in candidates {
             if let Ok(partial_hash) = self.calculate_partial_hash(&file.path).await {
                 let key = format!("{}:{}:{}", file.name, file.size, partial_hash);
-                hash_groups.entry(key).or_insert_with(Vec::new).push(file);
+                hash_groups.entry(key).or_default().push(file);
             }
         }
 
@@ -1115,7 +1212,8 @@ impl DiskAnalyzer {
         hasher.update(&buffer[..bytes_read]);
 
         // If file is large enough, also read last 64KB
-        if file_size > 131072 { // 128KB
+        if file_size > 131072 {
+            // 128KB
             file.seek(SeekFrom::End(-65536)).await?;
             let bytes_read = file.read(&mut buffer).await?;
             hasher.update(&buffer[..bytes_read]);
@@ -1127,7 +1225,8 @@ impl DiskAnalyzer {
 
     /// Advanced large file analysis
     async fn analyze_large_files(&self, files: &[FileInfo], config: &ScanConfig) -> Vec<FileInfo> {
-        let mut large_files: Vec<FileInfo> = files.iter()
+        let mut large_files: Vec<FileInfo> = files
+            .iter()
             .filter(|f| f.size >= config.large_file_threshold)
             .cloned()
             .collect();
@@ -1139,13 +1238,24 @@ impl DiskAnalyzer {
         let mut categorized = HashMap::new();
         for file in &large_files {
             let category = self.categorize_file(&file.name, &file.extension);
-            categorized.entry(category).or_insert_with(Vec::new).push(file.clone());
+            categorized
+                .entry(category)
+                .or_insert_with(Vec::new)
+                .push(file.clone());
         }
 
         // Return top files from each category (up to 1000 total)
         let mut result = Vec::new();
-        let categories = ["videos", "archives", "databases", "images", "documents", "executables", "other"];
-        
+        let categories = [
+            "videos",
+            "archives",
+            "databases",
+            "images",
+            "documents",
+            "executables",
+            "other",
+        ];
+
         for category in &categories {
             if let Some(category_files) = categorized.get(*category) {
                 let take = std::cmp::min(category_files.len(), 150); // Limit per category
@@ -1159,7 +1269,10 @@ impl DiskAnalyzer {
 
     /// Categorize file by extension and name patterns
     fn categorize_file(&self, name: &str, extension: &Option<String>) -> &'static str {
-        let ext = extension.as_ref().map(|s| s.to_lowercase()).unwrap_or_default();
+        let ext = extension
+            .as_ref()
+            .map(|s| s.to_lowercase())
+            .unwrap_or_default();
         let name_lower = name.to_lowercase();
 
         match ext.as_str() {
@@ -1208,5 +1321,4 @@ impl<T, I: Iterator<Item = T>> PartitionIntoThree<T> for I {
 
         (group0, group1, group2)
     }
-    
 }

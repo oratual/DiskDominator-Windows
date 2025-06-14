@@ -1,11 +1,13 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
-use anyhow::Result;
 
 use crate::app_state::AppState;
-use crate::disk_analyzer::{DiskAnalyzer, ScanType, ScanConfig, ScanSession, DualScanProgress, DuplicateStrategy};
-use crate::commands::home_commands::{log_activity, ActivityType, ActivityMetadata};
+use crate::commands::home_commands::{log_activity, ActivityMetadata, ActivityType};
+use crate::disk_analyzer::{
+    DiskAnalyzer, DualScanProgress, DuplicateStrategy, ScanConfig, ScanType,
+};
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -62,7 +64,7 @@ pub async fn scan_disk_new(
     state: State<'_, Arc<AppState>>,
 ) -> Result<ScanResponse, String> {
     let app_state = state.inner();
-    
+
     // Check if analyzer exists, create if not
     let analyzer = {
         let current_analyzer = app_state.current_analyzer.read().await;
@@ -141,7 +143,8 @@ pub async fn scan_disk_new(
             duration: None,
             error: None,
         }),
-    ).await;
+    )
+    .await;
 
     Ok(ScanResponse {
         session_id,
@@ -157,7 +160,7 @@ pub async fn get_scan_progress_new(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Option<DualScanProgress>, String> {
     let app_state = state.inner();
-    
+
     let analyzer = {
         let current_analyzer = app_state.current_analyzer.read().await;
         current_analyzer.as_ref().cloned()
@@ -174,11 +177,9 @@ pub async fn get_scan_progress_new(
 
 /// Get all disk statuses
 #[tauri::command]
-pub async fn get_disk_statuses(
-    state: State<'_, Arc<AppState>>,
-) -> Result<Vec<DiskStatus>, String> {
+pub async fn get_disk_statuses(state: State<'_, Arc<AppState>>) -> Result<Vec<DiskStatus>, String> {
     let app_state = state.inner();
-    
+
     // Get system disks
     let disks = crate::file_system::get_system_disks()
         .await
@@ -194,7 +195,7 @@ pub async fn get_disk_statuses(
 
     for disk in disks {
         let disk_id = disk.name.chars().next().unwrap_or('C').to_string();
-        
+
         let mut status = DiskStatus {
             id: disk_id.clone(),
             name: disk.name,
@@ -239,19 +240,21 @@ pub async fn get_disk_statuses(
                     // Update progress information
                     status.progress = session.progress.overall_progress as f32;
                     status.quick_scan_progress = Some(
-                        (session.progress.quick_scan.processed_files as f32 / 
-                         session.progress.quick_scan.total_files.max(1) as f32) * 100.0
+                        (session.progress.quick_scan.processed_files as f32
+                            / session.progress.quick_scan.total_files.max(1) as f32)
+                            * 100.0,
                     );
                     status.slow_scan_progress = Some(
-                        (session.progress.deep_scan.processed_files as f32 / 
-                         session.progress.deep_scan.total_files.max(1) as f32) * 100.0
+                        (session.progress.deep_scan.processed_files as f32
+                            / session.progress.deep_scan.total_files.max(1) as f32)
+                            * 100.0,
                     );
-                    status.files_scanned = session.progress.quick_scan.processed_files + 
-                                         session.progress.deep_scan.processed_files;
-                    status.total_files = session.progress.quick_scan.total_files + 
-                                       session.progress.deep_scan.total_files;
+                    status.files_scanned = session.progress.quick_scan.processed_files
+                        + session.progress.deep_scan.processed_files;
+                    status.total_files = session.progress.quick_scan.total_files
+                        + session.progress.deep_scan.total_files;
                     status.current_path = Some(session.progress.quick_scan.current_path.clone());
-                    
+
                     match session.scan_type {
                         crate::disk_analyzer::ScanType::Quick => {
                             status.scan_type = Some("quick".to_string());
@@ -280,7 +283,7 @@ pub async fn pause_scan(
     state: State<'_, Arc<AppState>>,
 ) -> Result<SessionControl, String> {
     let app_state = state.inner();
-    
+
     let analyzer = {
         let current_analyzer = app_state.current_analyzer.read().await;
         current_analyzer.as_ref().cloned()
@@ -308,7 +311,7 @@ pub async fn resume_scan(
     state: State<'_, Arc<AppState>>,
 ) -> Result<SessionControl, String> {
     let app_state = state.inner();
-    
+
     let analyzer = {
         let current_analyzer = app_state.current_analyzer.read().await;
         current_analyzer.as_ref().cloned()
@@ -336,7 +339,7 @@ pub async fn cancel_scan(
     state: State<'_, Arc<AppState>>,
 ) -> Result<SessionControl, String> {
     let app_state = state.inner();
-    
+
     let analyzer = {
         let current_analyzer = app_state.current_analyzer.read().await;
         current_analyzer.as_ref().cloned()
@@ -356,7 +359,8 @@ pub async fn cancel_scan(
             ActivityType::ErrorOccurred,
             "cancelled".to_string(),
             None,
-        ).await;
+        )
+        .await;
 
         return Ok(SessionControl {
             success: true,

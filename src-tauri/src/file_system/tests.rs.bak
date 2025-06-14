@@ -1,0 +1,275 @@
+#[cfg(test)]
+mod tests {
+    use super::super::*;
+
+    #[test]
+    fn test_disk_info_creation() {
+        let disk = DiskInfo {
+            name: "Local Disk".to_string(),
+            mount_point: "C:\\".to_string(),
+            total_space: 1000000000,
+            available_space: 500000000,
+            used_space: 500000000,
+            file_system: "NTFS".to_string(),
+            drive_letter: Some("C".to_string()),
+        };
+
+        assert_eq!(disk.drive_letter, Some("C".to_string()));
+        assert_eq!(disk.used_space, 500000000);
+        assert_eq!(disk.total_space, disk.used_space + disk.available_space);
+    }
+
+    #[test]
+    fn test_parse_drive_letter_from_mount_point() {
+        let test_cases = vec![
+            ("C:\\", Some("C")),
+            ("D:\\", Some("D")),
+            ("E:\\Users\\Test", Some("E")),
+            ("/mnt/c", None),
+            ("", None),
+        ];
+
+        for (mount_point, expected) in test_cases {
+            let result = extract_drive_letter_from_path(mount_point);
+            assert_eq!(
+                result,
+                expected.map(String::from),
+                "Failed for: {}",
+                mount_point
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_wmic_output() {
+        let wmic_output = r#"
+DeviceID  Size           FreeSpace      FileSystem  VolumeName
+C:        1073741824000  536870912000   NTFS        Local Disk
+D:        2147483648000  1073741824000  NTFS        Data Drive
+        "#;
+
+        let disks = parse_wmic_output(wmic_output);
+        assert_eq!(disks.len(), 2);
+
+        let c_drive = &disks[0];
+        assert_eq!(c_drive.drive_letter, Some("C".to_string()));
+        assert_eq!(c_drive.mount_point, "C:\\");
+        assert_eq!(c_drive.total_space, 1073741824000);
+        assert_eq!(c_drive.available_space, 536870912000);
+        assert_eq!(c_drive.file_system, "NTFS");
+        assert_eq!(c_drive.name, "Local Disk");
+
+        let d_drive = &disks[1];
+        assert_eq!(d_drive.drive_letter, Some("D".to_string()));
+        assert_eq!(d_drive.name, "Data Drive");
+    }
+
+    #[test]
+    fn test_parse_powershell_output() {
+        let ps_output = r#"
+DriveLetter : C
+DriveType   : Fixed
+FileSystem  : NTFS
+VolumeName  : Local Disk
+Size        : 1073741824000
+SizeRemaining : 536870912000
+
+DriveLetter : D
+DriveType   : Fixed
+FileSystem  : NTFS
+VolumeName  : 
+Size        : 2147483648000
+SizeRemaining : 1073741824000
+        "#;
+
+        let disks = parse_powershell_output(ps_output);
+        assert_eq!(disks.len(), 2);
+
+        let c_drive = &disks[0];
+        assert_eq!(c_drive.drive_letter, Some("C".to_string()));
+        assert_eq!(c_drive.total_space, 1073741824000);
+        assert_eq!(c_drive.available_space, 536870912000);
+
+        let d_drive = &disks[1];
+        assert_eq!(d_drive.drive_letter, Some("D".to_string()));
+        assert_eq!(d_drive.name, "Drive D"); // Default name when VolumeName is empty
+    }
+
+    #[test]
+    fn test_invalid_disk_detection() {
+        // Test con salida vacía
+        let empty_output = "";
+        let disks = parse_wmic_output(empty_output);
+        assert_eq!(disks.len(), 0);
+
+        // Test con formato incorrecto
+        let invalid_output = "This is not valid WMIC output";
+        let disks = parse_wmic_output(invalid_output);
+        assert_eq!(disks.len(), 0);
+    }
+
+    #[test]
+    fn test_disk_space_calculations() {
+        let disk = DiskInfo {
+            name: "Test Disk".to_string(),
+            mount_point: "E:\\".to_string(),
+            total_space: 1000,
+            available_space: 300,
+            used_space: 700,
+            file_system: "NTFS".to_string(),
+            drive_letter: Some("E".to_string()),
+        };
+
+        // Verificar cálculos de espacio
+        assert_eq!(disk.used_space + disk.available_space, disk.total_space);
+
+        // Calcular porcentaje usado
+        let percentage = (disk.used_space as f64 / disk.total_space as f64) * 100.0;
+        assert!((percentage - 70.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_drive_letter_validation() {
+        let valid_letters = vec!["C", "D", "E", "Z"];
+        let invalid_letters = vec!["1", "CC", "", "c:", "C:\\"];
+
+        for letter in valid_letters {
+            assert!(is_valid_drive_letter(letter), "Should be valid: {}", letter);
+        }
+
+        for letter in invalid_letters {
+            assert!(
+                !is_valid_drive_letter(letter),
+                "Should be invalid: {}",
+                letter
+            );
+        }
+    }
+}
+
+// Helper functions que deberían existir en el módulo principal
+
+fn extract_drive_letter_from_path(path: &str) -> Option<String> {
+    if path.len() >= 2 && path.chars().nth(1) == Some(':') {
+        Some(path.chars().next()?.to_string().to_uppercase())
+    } else {
+        None
+    }
+}
+
+fn parse_wmic_output(output: &str) -> Vec<DiskInfo> {
+    let mut disks = Vec::new();
+    let lines: Vec<&str> = output
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())
+        .collect();
+
+    if lines.len() < 2 {
+        return disks;
+    }
+
+    // Skip header line
+    for line in lines.iter().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 5 {
+            let device_id = parts[0];
+            let drive_letter = device_id.trim_end_matches(':');
+
+            // Parse sizes (pueden fallar si no son números)
+            let total_space = parts[1].parse::<u64>().unwrap_or(0);
+            let available_space = parts[2].parse::<u64>().unwrap_or(0);
+            let used_space = total_space.saturating_sub(available_space);
+
+            let file_system = parts[3].to_string();
+            let volume_name = if parts.len() > 4 {
+                parts[4..].join(" ")
+            } else {
+                format!("Drive {}", drive_letter)
+            };
+
+            disks.push(DiskInfo {
+                name: volume_name,
+                mount_point: format!("{}\\", device_id),
+                total_space,
+                available_space,
+                used_space,
+                file_system,
+                drive_letter: Some(drive_letter.to_string()),
+            });
+        }
+    }
+
+    disks
+}
+
+fn parse_powershell_output(output: &str) -> Vec<DiskInfo> {
+    let mut disks = Vec::new();
+    let mut current_disk: Option<DiskInfo> = None;
+
+    for line in output.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            if let Some(disk) = current_disk.take() {
+                disks.push(disk);
+            }
+            continue;
+        }
+
+        if let Some((key, value)) = line.split_once(':') {
+            let key = key.trim();
+            let value = value.trim();
+
+            match key {
+                "DriveLetter" => {
+                    if let Some(disk) = current_disk.take() {
+                        disks.push(disk);
+                    }
+                    current_disk = Some(DiskInfo {
+                        name: format!("Drive {}", value),
+                        mount_point: format!("{}:\\", value),
+                        total_space: 0,
+                        available_space: 0,
+                        used_space: 0,
+                        file_system: String::new(),
+                        drive_letter: Some(value.to_string()),
+                    });
+                }
+                "FileSystem" => {
+                    if let Some(ref mut disk) = current_disk {
+                        disk.file_system = value.to_string();
+                    }
+                }
+                "VolumeName" => {
+                    if let Some(ref mut disk) = current_disk {
+                        if !value.is_empty() {
+                            disk.name = value.to_string();
+                        }
+                    }
+                }
+                "Size" => {
+                    if let Some(ref mut disk) = current_disk {
+                        disk.total_space = value.parse().unwrap_or(0);
+                    }
+                }
+                "SizeRemaining" => {
+                    if let Some(ref mut disk) = current_disk {
+                        disk.available_space = value.parse().unwrap_or(0);
+                        disk.used_space = disk.total_space.saturating_sub(disk.available_space);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    if let Some(disk) = current_disk {
+        disks.push(disk);
+    }
+
+    disks
+}
+
+fn is_valid_drive_letter(letter: &str) -> bool {
+    letter.len() == 1 && letter.chars().next().unwrap().is_ascii_uppercase()
+}

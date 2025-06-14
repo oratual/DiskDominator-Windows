@@ -1,7 +1,7 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::State;
-use chrono::{DateTime, Utc};
 
 use crate::app_state::AppState;
 use crate::file_system;
@@ -97,7 +97,7 @@ pub async fn log_activity(
         status,
         metadata,
     };
-    
+
     state.add_activity(activity).await;
 }
 
@@ -109,13 +109,13 @@ pub async fn get_system_overview(
     let disks = file_system::get_system_disks()
         .await
         .map_err(|e| e.to_string())?;
-    
+
     // Convert to DiskSummary format
     let mut disk_summaries = Vec::new();
     let mut total_disk_space = 0u64;
     let mut total_used_space = 0u64;
     let mut total_free_space = 0u64;
-    
+
     for disk in disks {
         let used = disk.total_space.saturating_sub(disk.available_space);
         let percentage = if disk.total_space > 0 {
@@ -123,15 +123,19 @@ pub async fn get_system_overview(
         } else {
             0.0
         };
-        
+
         total_disk_space += disk.total_space;
         total_used_space += used;
         total_free_space += disk.available_space;
-        
+
         disk_summaries.push(DiskSummary {
             id: disk.drive_letter.clone().unwrap_or_else(|| {
                 // Fallback: extract drive letter from mount_point (e.g., "C:\\" -> "C")
-                disk.mount_point.chars().take(1).collect::<String>().to_uppercase()
+                disk.mount_point
+                    .chars()
+                    .take(1)
+                    .collect::<String>()
+                    .to_uppercase()
             }),
             label: disk.name.clone(),
             path: disk.mount_point.clone(),
@@ -143,42 +147,41 @@ pub async fn get_system_overview(
             last_scanned: None, // TODO: Get from scan history
         });
     }
-    
+
     // Get additional statistics from app state
     let app_state = state.inner();
-    
+
     // Get real statistics from disk analyzer if available
-    let (duplicates_found, space_recoverable, large_files_count, last_full_scan) = 
+    let (duplicates_found, space_recoverable, large_files_count, last_full_scan) =
         if let Some(analyzer) = app_state.current_analyzer.read().await.as_ref() {
             let stats = analyzer.get_statistics().await;
             (
                 stats.duplicates_count as u32,
                 stats.duplicate_size,
                 stats.large_files_count as u32,
-                stats.last_scan_time
+                stats.last_scan_time,
             )
         } else {
             // If no analyzer is active, check stored results in storage
             let storage = app_state.storage.read().await;
-            
+
             // Calculate statistics from all stored scan results
             let mut total_duplicates = 0u32;
             let mut total_recoverable = 0u64;
             let mut total_large_files = 0u32;
-            
+
             for (_, files) in storage.scan_results.iter() {
                 // Count files > 100MB as large files
-                total_large_files += files.iter()
-                    .filter(|f| f.size > 100 * 1024 * 1024)
-                    .count() as u32;
-                
+                total_large_files +=
+                    files.iter().filter(|f| f.size > 100 * 1024 * 1024).count() as u32;
+
                 // TODO: Add duplicate detection to stored results
                 // For now, estimate duplicates as files with same size
                 let mut size_map = std::collections::HashMap::new();
                 for file in files {
                     size_map.entry(file.size).or_insert(Vec::new()).push(file);
                 }
-                
+
                 for (size, group) in size_map {
                     if group.len() > 1 {
                         total_duplicates += (group.len() - 1) as u32;
@@ -186,10 +189,10 @@ pub async fn get_system_overview(
                     }
                 }
             }
-            
+
             (total_duplicates, total_recoverable, total_large_files, None)
         };
-    
+
     Ok(SystemOverview {
         disks: disk_summaries,
         total_disk_space,
@@ -208,23 +211,23 @@ pub async fn get_recent_activity(
     state: State<'_, Arc<AppState>>,
 ) -> Result<Vec<Activity>, String> {
     let activity_limit = limit.unwrap_or(50);
-    
+
     // Get real activity from app state
     let app_state = state.inner();
     let activity_log = app_state.activity_log.read().await;
-    
+
     // If no activities exist, return empty vec instead of mock data
     if activity_log.is_empty() {
         return Ok(Vec::new());
     }
-    
+
     // Convert to Vec and sort by time (most recent first)
     let mut activities: Vec<Activity> = activity_log.values().cloned().collect();
     activities.sort_by(|a, b| b.time.cmp(&a.time));
-    
+
     // Limit results
     activities.truncate(activity_limit as usize);
-    
+
     Ok(activities)
 }
 
@@ -243,8 +246,9 @@ pub async fn execute_quick_action(
                 ActivityType::ScanStarted,
                 "running".to_string(),
                 None,
-            ).await;
-            
+            )
+            .await;
+
             // Return success - the frontend will navigate to the scan view
             Ok(QuickActionResult {
                 success: true,
@@ -280,9 +284,7 @@ pub async fn execute_quick_action(
 }
 
 #[tauri::command]
-pub async fn refresh_dashboard(
-    _state: State<'_, Arc<AppState>>,
-) -> Result<SystemOverview, String> {
+pub async fn refresh_dashboard(_state: State<'_, Arc<AppState>>) -> Result<SystemOverview, String> {
     // Force refresh all dashboard data
     // This could trigger background updates as well
     get_system_overview(_state).await

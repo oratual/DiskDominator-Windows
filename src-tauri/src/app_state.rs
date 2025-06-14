@@ -22,7 +22,8 @@ pub struct AppState {
     pub storage: Arc<RwLock<SimpleStorage>>,
     pub current_analyzer: Arc<RwLock<Option<crate::disk_analyzer::DiskAnalyzer>>>,
     pub websocket_manager: Arc<crate::websocket::WebSocketManager>,
-    pub activity_log: Arc<RwLock<std::collections::HashMap<String, crate::commands::home_commands::Activity>>>,
+    pub activity_log:
+        Arc<RwLock<std::collections::HashMap<String, crate::commands::home_commands::Activity>>>,
     // Commented out until modules are available:
     // pub auth: Arc<RwLock<AuthModule>>,
     // pub i18n: Arc<RwLock<I18nModule>>,
@@ -30,27 +31,33 @@ pub struct AppState {
     // pub updater: Arc<RwLock<UpdateModule>>,
 }
 
+impl Default for AppState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl AppState {
     pub fn new() -> Self {
         let websocket_manager = Arc::new(crate::websocket::WebSocketManager::new());
-        let app_state = Self {
+        
+
+        // Don't initialize sample activities here - Tokio runtime isn't ready yet
+        // This will be done when the app starts properly
+
+        Self {
             storage: Arc::new(RwLock::new(SimpleStorage::default())),
             current_analyzer: Arc::new(RwLock::new(None)),
             websocket_manager,
             activity_log: Arc::new(RwLock::new(std::collections::HashMap::new())),
-        };
-        
-        // Don't initialize sample activities here - Tokio runtime isn't ready yet
-        // This will be done when the app starts properly
-        
-        app_state
+        }
     }
-    
+
     /// Add activity to the log
     pub async fn add_activity(&self, activity: crate::commands::home_commands::Activity) {
         let mut log = self.activity_log.write().await;
         log.insert(activity.id.clone(), activity);
-        
+
         // Keep only last 100 activities
         if log.len() > 100 {
             let mut activities: Vec<_> = log.values().cloned().collect();
@@ -61,10 +68,10 @@ impl AppState {
             }
         }
     }
-    
+
     /// Initialize with REAL system detection activity
     async fn initialize_sample_activities(&self) {
-        use crate::commands::home_commands::{Activity, ActivityType, ActivityMetadata};
+        use crate::commands::home_commands::{Activity, ActivityMetadata, ActivityType};
         use chrono::Utc;
         use uuid::Uuid;
 
@@ -91,11 +98,11 @@ impl AppState {
                     error: None,
                 }),
             };
-            
+
             self.add_activity(activity).await;
         }
     }
-    
+
     // Original constructor commented out:
     /*
     pub fn new(

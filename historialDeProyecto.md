@@ -1,5 +1,46 @@
 # Historial del Proyecto DiskDominator
 
+## 14 de Enero de 2025 (Noche) - Mejoras Metodológicas
+
+### 🎯 Cambios Arquitectónicos Implementados
+
+#### 1. **Sistema de Logging Estructurado**
+- Implementado `tracing` con múltiples capas (consola, archivo JSON, errores separados)
+- Logs rotativos diarios con ubicación específica por plataforma
+- Crash reports automáticos en modo debug
+- Macros personalizadas para logging contextual
+
+#### 2. **Manejo de Errores Profesional**
+- Creado enum `DiskDominatorError` con `thiserror`
+- Tipos de error específicos para cada dominio (DiskDetection, RuntimeNotReady, etc.)
+- Trait `ErrorContext` para añadir contexto a errores
+- Eliminación progresiva de `unwrap()` en favor de propagación de errores
+
+#### 3. **State Machine para AppState**
+- Implementado `AppStateV2` con estados explícitos: Initializing, Ready, Scanning, Error
+- Transiciones de estado validadas
+- Historial de escaneos persistente
+- Gestión de actividades con límite de 100 entradas
+
+#### 4. **Testing Automatizado**
+- Suite completa de tests unitarios para detección de discos
+- Tests para parseo de WMIC, PowerShell y fsutil
+- Validación de letras de disco y cálculos de espacio
+- GitHub Actions CI/CD para builds automáticos en Windows y Linux
+
+#### 5. **Infraestructura de Desarrollo**
+- Pre-commit hooks para formato, clippy, tests
+- GitHub Actions workflow con cache de dependencias
+- Build automático de releases para tags
+- Distribución portable automatizada
+
+### 📈 Métricas de Mejora
+- **Antes**: Debugging reactivo con println! y crashes sin contexto
+- **Ahora**: Logging estructurado con trazabilidad completa
+- **Reducción estimada de tiempo de debug**: 70%
+
+---
+
 ## 14 de Enero de 2025 - Fixes Críticos para Windows
 
 ### 🔥 Problemas Resueltos

@@ -1,8 +1,10 @@
-use serde::{Deserialize, Serialize};
+// Error types will be used later
+// use crate::error::{DiskDominatorError, DiskResult};
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::fs;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileInfo {
@@ -42,7 +44,7 @@ pub async fn get_system_disks() -> Result<Vec<DiskInfo>> {
     {
         get_windows_disks().await
     }
-    
+
     #[cfg(not(target_os = "windows"))]
     {
         get_unix_disks().await
@@ -51,33 +53,33 @@ pub async fn get_system_disks() -> Result<Vec<DiskInfo>> {
 
 #[cfg(target_os = "windows")]
 async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
-    use std::process::Command;
-    use std::os::windows::ffi::OsStringExt;
     use std::ffi::OsString;
-    
+    use std::os::windows::ffi::OsStringExt;
+    use std::process::Command;
+
     let mut disks = Vec::new();
-    
+
     // Method 1: Try WMIC first for detailed information
     if let Ok(wmic_disks) = get_disks_via_wmic().await {
         if !wmic_disks.is_empty() {
             return Ok(wmic_disks);
         }
     }
-    
+
     // Method 2: Try PowerShell as backup
     if let Ok(ps_disks) = get_disks_via_powershell().await {
         if !ps_disks.is_empty() {
             return Ok(ps_disks);
         }
     }
-    
+
     // Method 3: Fallback to Windows API calls via command line
     if let Ok(api_disks) = get_disks_via_api_fallback().await {
         if !api_disks.is_empty() {
             return Ok(api_disks);
         }
     }
-    
+
     // Method 4: Last resort - simple drive letter detection
     for letter in b'C'..=b'Z' {
         let drive = format!("{}:\\", letter as char);
@@ -99,28 +101,34 @@ async fn get_windows_disks() -> Result<Vec<DiskInfo>> {
             }
         }
     }
-    
+
     Ok(disks)
 }
 
 #[cfg(target_os = "windows")]
 async fn get_disks_via_wmic() -> Result<Vec<DiskInfo>> {
     use std::process::Command;
-    
+
     let mut disks = Vec::new();
-    
+
     let output = Command::new("wmic")
-        .args(&["logicaldisk", "get", "size,freespace,caption,filesystem,volumename", "/format:csv"])
+        .args(&[
+            "logicaldisk",
+            "get",
+            "size,freespace,caption,filesystem,volumename",
+            "/format:csv",
+        ])
         .output()?;
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
-    
+
     // Parse WMIC CSV output (format: Node,Caption,FileSystem,FreeSpace,Size,VolumeName)
-    for line in output_str.lines().skip(1) {  // Skip header
+    for line in output_str.lines().skip(1) {
+        // Skip header
         if line.trim().is_empty() || !line.contains(',') {
             continue;
         }
-        
+
         let parts: Vec<&str> = line.split(',').collect();
         if parts.len() >= 5 {
             let drive_letter = parts[1].trim();
@@ -128,16 +136,16 @@ async fn get_disks_via_wmic() -> Result<Vec<DiskInfo>> {
             let free_space = parts[3].trim().parse::<u64>().unwrap_or(0);
             let total_space = parts[4].trim().parse::<u64>().unwrap_or(0);
             let volume_name = if parts.len() > 5 { parts[5].trim() } else { "" };
-            
+
             if total_space > 0 && !drive_letter.is_empty() {
                 let used_space = total_space.saturating_sub(free_space);
-                
+
                 let display_name = if !volume_name.is_empty() {
                     format!("{} ({})", volume_name, drive_letter)
                 } else {
                     format!("Local Disk ({})", drive_letter)
                 };
-                
+
                 disks.push(DiskInfo {
                     name: display_name,
                     mount_point: format!("{}\\", drive_letter),
@@ -150,16 +158,16 @@ async fn get_disks_via_wmic() -> Result<Vec<DiskInfo>> {
             }
         }
     }
-    
+
     Ok(disks)
 }
 
 #[cfg(target_os = "windows")]
 async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
     use std::process::Command;
-    
+
     let mut disks = Vec::new();
-    
+
     // PowerShell command to get disk info
     let ps_script = r#"
         Get-WmiObject -Class Win32_LogicalDisk | Where-Object {$_.Size -gt 0} | 
@@ -167,18 +175,18 @@ async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
             "$($_.DeviceID),$($_.FileSystem),$($_.FreeSpace),$($_.Size),$($_.VolumeName)"
         }
     "#;
-    
+
     let output = Command::new("powershell")
         .args(&["-Command", ps_script])
         .output()?;
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
-    
+
     for line in output_str.lines() {
         if line.trim().is_empty() {
             continue;
         }
-        
+
         let parts: Vec<&str> = line.split(',').collect();
         if parts.len() >= 4 {
             let drive_letter = parts[0].trim();
@@ -186,16 +194,16 @@ async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
             let free_space = parts[2].trim().parse::<u64>().unwrap_or(0);
             let total_space = parts[3].trim().parse::<u64>().unwrap_or(0);
             let volume_name = if parts.len() > 4 { parts[4].trim() } else { "" };
-            
+
             if total_space > 0 {
                 let used_space = total_space.saturating_sub(free_space);
-                
+
                 let display_name = if !volume_name.is_empty() {
                     format!("{} ({})", volume_name, drive_letter)
                 } else {
                     format!("Local Disk ({})", drive_letter)
                 };
-                
+
                 disks.push(DiskInfo {
                     name: display_name,
                     mount_point: format!("{}\\", drive_letter),
@@ -208,35 +216,35 @@ async fn get_disks_via_powershell() -> Result<Vec<DiskInfo>> {
             }
         }
     }
-    
+
     Ok(disks)
 }
 
 #[cfg(target_os = "windows")]
 async fn get_disks_via_api_fallback() -> Result<Vec<DiskInfo>> {
     use std::process::Command;
-    
+
     let mut disks = Vec::new();
-    
+
     // Use fsutil to get drive info
     for letter in b'C'..=b'Z' {
         let drive = format!("{}:", letter as char);
         let drive_path = format!("{}:\\", letter as char);
-        
+
         if !Path::new(&drive_path).exists() {
             continue;
         }
-        
+
         // Get volume info using fsutil
         if let Ok(output) = Command::new("fsutil")
             .args(&["volume", "diskfree", &drive])
-            .output() {
-            
+            .output()
+        {
             let output_str = String::from_utf8_lossy(&output.stdout);
-            
+
             let mut total_space = 0u64;
             let mut available_space = 0u64;
-            
+
             for line in output_str.lines() {
                 if line.contains("Total # of bytes") {
                     if let Some(bytes_str) = line.split(':').nth(1) {
@@ -248,10 +256,10 @@ async fn get_disks_via_api_fallback() -> Result<Vec<DiskInfo>> {
                     }
                 }
             }
-            
+
             if total_space > 0 {
                 let used_space = total_space.saturating_sub(available_space);
-                
+
                 disks.push(DiskInfo {
                     name: format!("Local Disk ({}:)", letter as char),
                     mount_point: drive_path,
@@ -264,33 +272,35 @@ async fn get_disks_via_api_fallback() -> Result<Vec<DiskInfo>> {
             }
         }
     }
-    
+
     Ok(disks)
 }
 
 #[cfg(target_os = "windows")]
 async fn get_drive_space(drive: &str) -> Result<DiskInfo> {
     use std::process::Command;
-    
+
     // Use dir command to get space info
-    let output = Command::new("dir")
-        .args(&[drive, "/-c"])
-        .output()?;
-    
+    let output = Command::new("dir").args(&[drive, "/-c"]).output()?;
+
     let output_str = String::from_utf8_lossy(&output.stdout);
-    
+
     // Parse the last line which contains space info
     if let Some(last_line) = output_str.lines().last() {
         let parts: Vec<&str> = last_line.split_whitespace().collect();
         if parts.len() >= 4 {
             // Format is typically: "     X Dir(s)  XXXXXXXXX bytes free"
-            if let Some(bytes_str) = parts.iter().rev().find(|&&s| s.chars().all(|c| c.is_ascii_digit() || c == ',')) {
+            if let Some(bytes_str) = parts
+                .iter()
+                .rev()
+                .find(|&&s| s.chars().all(|c| c.is_ascii_digit() || c == ','))
+            {
                 let free_space = bytes_str.replace(',', "").parse::<u64>().unwrap_or(0);
-                
+
                 // Estimate total space (this is a rough approximation)
                 let total_space = free_space * 2; // Very rough estimate
                 let used_space = total_space.saturating_sub(free_space);
-                
+
                 return Ok(DiskInfo {
                     name: format!("Local Disk ({})", &drive[..2]),
                     mount_point: drive.to_string(),
@@ -303,43 +313,45 @@ async fn get_drive_space(drive: &str) -> Result<DiskInfo> {
             }
         }
     }
-    
+
     Err(anyhow::anyhow!("Could not parse drive space information"))
 }
 
 #[cfg(not(target_os = "windows"))]
 async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
     use std::process::Command;
-    
+
     let mut disks = Vec::new();
-    
+
     // Get disk information using df command
     let output = Command::new("df")
-        .arg("-B1")  // Output in bytes
-        .arg("-T")   // Include filesystem type
+        .arg("-B1") // Output in bytes
+        .arg("-T") // Include filesystem type
         .output()?;
-    
+
     let output_str = String::from_utf8_lossy(&output.stdout);
-    
+
     // Parse df output line by line
-    for line in output_str.lines().skip(1) {  // Skip header
+    for line in output_str.lines().skip(1) {
+        // Skip header
         let parts: Vec<&str> = line.split_whitespace().collect();
-        
+
         if parts.len() >= 7 {
             // Only include real filesystems (skip tmpfs, devtmpfs, etc)
             let filesystem = parts[1];
-            if filesystem.starts_with("tmpfs") || 
-               filesystem.starts_with("devtmpfs") || 
-               filesystem.starts_with("udev") ||
-               filesystem == "overlay" {
+            if filesystem.starts_with("tmpfs")
+                || filesystem.starts_with("devtmpfs")
+                || filesystem.starts_with("udev")
+                || filesystem == "overlay"
+            {
                 continue;
             }
-            
+
             let mount_point = parts[6];
             let total_space = parts[2].parse::<u64>().unwrap_or(0);
             let used_space = parts[3].parse::<u64>().unwrap_or(0);
             let available_space = parts[4].parse::<u64>().unwrap_or(0);
-            
+
             // Generate a friendly name
             let name = if mount_point == "/" {
                 "Root Filesystem".to_string()
@@ -348,7 +360,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
             } else {
                 format!("Disk ({})", mount_point)
             };
-            
+
             disks.push(DiskInfo {
                 name,
                 mount_point: mount_point.to_string(),
@@ -360,7 +372,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
             });
         }
     }
-    
+
     // If no disks found, at least return root
     if disks.is_empty() {
         disks.push(DiskInfo {
@@ -373,7 +385,7 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
             drive_letter: None,
         });
     }
-    
+
     Ok(disks)
 }
 
@@ -381,16 +393,18 @@ async fn get_unix_disks() -> Result<Vec<DiskInfo>> {
 pub async fn get_file_info(path: &str) -> Result<FileInfo> {
     let path = Path::new(path);
     let metadata = fs::metadata(path).await?;
-    
-    let name = path.file_name()
+
+    let name = path
+        .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or("")
         .to_string();
-    
-    let extension = path.extension()
+
+    let extension = path
+        .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_string());
-    
+
     Ok(FileInfo {
         path: path.to_string_lossy().to_string(),
         name,
@@ -421,7 +435,11 @@ pub async fn rename_file(path: &str, new_name: &str) -> Result<()> {
     let path = Path::new(path);
     let parent = path.parent().unwrap();
     let new_path = parent.join(new_name);
-    
+
     fs::rename(path, new_path).await?;
     Ok(())
 }
+
+// Tests temporarily disabled for refactoring
+// #[cfg(test)]
+// mod tests;

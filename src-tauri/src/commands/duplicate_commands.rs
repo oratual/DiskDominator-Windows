@@ -1,12 +1,12 @@
-use serde::{Deserialize, Serialize};
-use tauri::State;
-use anyhow::Result;
 use crate::app_state::AppState;
 use crate::file_system::FileInfo;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::path::Path;
+use tauri::State;
 use tokio::fs;
-use sha2::{Sha256, Digest};
 // use std::io; // Not needed for current implementation
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -115,12 +115,12 @@ pub async fn find_duplicates_advanced(
 ) -> Result<Vec<DuplicateGroup>, String> {
     let storage = state.storage.read().await;
     let mut all_files = Vec::new();
-    
+
     // Collect files from all scanned directories
     for (_, files) in storage.scan_results.iter() {
         all_files.extend(files.clone());
     }
-    
+
     // Filter by disk if specified
     if let Some(ref disks) = options.disks {
         all_files.retain(|f| {
@@ -131,7 +131,7 @@ pub async fn find_duplicates_advanced(
             }
         });
     }
-    
+
     // Filter by size if specified
     if let Some(min_size) = options.min_size {
         all_files.retain(|f| f.size >= min_size);
@@ -139,7 +139,7 @@ pub async fn find_duplicates_advanced(
     if let Some(max_size) = options.max_size {
         all_files.retain(|f| f.size <= max_size);
     }
-    
+
     // Group files based on detection method
     let groups = match options.detection_method {
         DetectionMethod::Hash => group_by_hash(all_files).await?,
@@ -147,10 +147,10 @@ pub async fn find_duplicates_advanced(
         DetectionMethod::Size => group_by_size(all_files),
         DetectionMethod::NameAndSize => group_by_name_and_size(all_files),
     };
-    
+
     // Convert to DuplicateGroup format
     let duplicate_groups = convert_to_duplicate_groups(groups).await;
-    
+
     Ok(duplicate_groups)
 }
 
@@ -161,19 +161,20 @@ pub async fn get_duplicate_groups(
     state: State<'_, AppState>,
 ) -> Result<HashMap<String, serde_json::Value>, String> {
     let groups = find_duplicates_advanced(options, state).await?;
-    
+
     // Calculate by_disk data
     let mut by_disk: HashMap<String, u64> = HashMap::new();
     for group in &groups {
         // Only count recoverable space (excluding the original)
         for (idx, copy) in group.copies.iter().enumerate() {
-            if idx > 0 { // Skip the first copy (original)
+            if idx > 0 {
+                // Skip the first copy (original)
                 let disk_id = copy.disk.clone();
                 *by_disk.entry(disk_id).or_insert(0) += copy.size;
             }
         }
     }
-    
+
     let summary = DuplicateSummary {
         total_groups: groups.len(),
         total_duplicates: groups.iter().map(|g| g.copies.len()).sum(),
@@ -181,11 +182,17 @@ pub async fn get_duplicate_groups(
         recoverable_size: groups.iter().map(|g| g.recoverable_size).sum(),
         by_disk,
     };
-    
+
     let mut result = HashMap::new();
-    result.insert("groups".to_string(), serde_json::to_value(&groups).map_err(|e| e.to_string())?);
-    result.insert("summary".to_string(), serde_json::to_value(&summary).map_err(|e| e.to_string())?);
-    
+    result.insert(
+        "groups".to_string(),
+        serde_json::to_value(&groups).map_err(|e| e.to_string())?,
+    );
+    result.insert(
+        "summary".to_string(),
+        serde_json::to_value(&summary).map_err(|e| e.to_string())?,
+    );
+
     Ok(result)
 }
 
@@ -199,7 +206,7 @@ pub async fn delete_duplicates_batch(
     let mut deleted = Vec::new();
     let mut failed = Vec::new();
     let mut space_saved = 0u64;
-    
+
     for file_id in file_ids {
         // For now, we'll use the file_id as the path
         // In a real implementation, you'd look up the actual file path from the database
@@ -216,7 +223,7 @@ pub async fn delete_duplicates_batch(
             }
         }
     }
-    
+
     Ok(DeleteBatchResult {
         deleted,
         failed,
@@ -231,7 +238,7 @@ pub async fn smart_select_duplicates(
     state: State<'_, AppState>,
 ) -> Result<Vec<SelectionResult>, String> {
     let mut results = Vec::new();
-    
+
     // Get all duplicate groups
     let options = DuplicateOptions {
         disks: None,
@@ -242,16 +249,16 @@ pub async fn smart_select_duplicates(
         group_by: None,
         detection_method: DetectionMethod::Hash,
     };
-    
+
     let groups = find_duplicates_advanced(options, state).await?;
-    
+
     for group in groups {
         if strategy.group_ids.is_empty() || strategy.group_ids.contains(&group.id) {
             let selection = apply_selection_strategy(&group, &strategy.strategy);
             results.push(selection);
         }
     }
-    
+
     Ok(results)
 }
 
@@ -260,33 +267,52 @@ pub async fn smart_select_duplicates(
 pub async fn preview_duplicate(
     file_path: String,
 ) -> Result<HashMap<String, serde_json::Value>, String> {
-    let metadata = fs::metadata(&file_path).await
+    let metadata = fs::metadata(&file_path)
+        .await
         .map_err(|e| format!("Failed to get file metadata: {}", e))?;
-    
+
     let mut result = HashMap::new();
-    result.insert("path".to_string(), serde_json::Value::String(file_path.clone()));
-    result.insert("size".to_string(), serde_json::Value::Number(metadata.len().into()));
-    
+    result.insert(
+        "path".to_string(),
+        serde_json::Value::String(file_path.clone()),
+    );
+    result.insert(
+        "size".to_string(),
+        serde_json::Value::Number(metadata.len().into()),
+    );
+
     // Add file type specific preview data
     if let Some(extension) = Path::new(&file_path).extension() {
         let ext = extension.to_string_lossy().to_lowercase();
         match ext.as_str() {
             "jpg" | "jpeg" | "png" | "gif" | "bmp" => {
                 // For images, we could return dimensions if we had an image library
-                result.insert("type".to_string(), serde_json::Value::String("image".to_string()));
+                result.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("image".to_string()),
+                );
             }
             "mp4" | "avi" | "mkv" | "mov" => {
-                result.insert("type".to_string(), serde_json::Value::String("video".to_string()));
+                result.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("video".to_string()),
+                );
             }
             "pdf" | "doc" | "docx" | "txt" => {
-                result.insert("type".to_string(), serde_json::Value::String("document".to_string()));
+                result.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("document".to_string()),
+                );
             }
             _ => {
-                result.insert("type".to_string(), serde_json::Value::String("other".to_string()));
+                result.insert(
+                    "type".to_string(),
+                    serde_json::Value::String("other".to_string()),
+                );
             }
         }
     }
-    
+
     Ok(result)
 }
 
@@ -294,12 +320,12 @@ pub async fn preview_duplicate(
 
 async fn group_by_hash(files: Vec<FileInfo>) -> Result<HashMap<String, Vec<FileInfo>>, String> {
     let mut groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
-    
+
     for file in files {
         if !file.is_directory {
             match calculate_file_hash(&file.path).await {
                 Ok(hash) => {
-                    groups.entry(hash).or_insert_with(Vec::new).push(file);
+                    groups.entry(hash).or_default().push(file);
                 }
                 Err(e) => {
                     eprintln!("Failed to hash file {}: {}", file.path, e);
@@ -307,50 +333,53 @@ async fn group_by_hash(files: Vec<FileInfo>) -> Result<HashMap<String, Vec<FileI
             }
         }
     }
-    
+
     // Only keep groups with duplicates
     groups.retain(|_, files| files.len() > 1);
-    
+
     Ok(groups)
 }
 
 fn group_by_name(files: Vec<FileInfo>) -> HashMap<String, Vec<FileInfo>> {
     let mut groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
-    
+
     for file in files {
         if !file.is_directory {
-            groups.entry(file.name.clone()).or_insert_with(Vec::new).push(file);
+            groups
+                .entry(file.name.clone())
+                .or_default()
+                .push(file);
         }
     }
-    
+
     groups.retain(|_, files| files.len() > 1);
     groups
 }
 
 fn group_by_size(files: Vec<FileInfo>) -> HashMap<String, Vec<FileInfo>> {
     let mut groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
-    
+
     for file in files {
         if !file.is_directory {
             let size_key = file.size.to_string();
-            groups.entry(size_key).or_insert_with(Vec::new).push(file);
+            groups.entry(size_key).or_default().push(file);
         }
     }
-    
+
     groups.retain(|_, files| files.len() > 1);
     groups
 }
 
 fn group_by_name_and_size(files: Vec<FileInfo>) -> HashMap<String, Vec<FileInfo>> {
     let mut groups: HashMap<String, Vec<FileInfo>> = HashMap::new();
-    
+
     for file in files {
         if !file.is_directory {
             let key = format!("{}_{}", file.name, file.size);
-            groups.entry(key).or_insert_with(Vec::new).push(file);
+            groups.entry(key).or_default().push(file);
         }
     }
-    
+
     groups.retain(|_, files| files.len() > 1);
     groups
 }
@@ -359,7 +388,7 @@ async fn calculate_file_hash(path: &str) -> Result<String> {
     let mut file = fs::File::open(path).await?;
     let mut hasher = Sha256::new();
     let mut buffer = vec![0; 8192];
-    
+
     loop {
         use tokio::io::AsyncReadExt;
         let n = file.read(&mut buffer).await?;
@@ -368,20 +397,22 @@ async fn calculate_file_hash(path: &str) -> Result<String> {
         }
         hasher.update(&buffer[..n]);
     }
-    
+
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-async fn convert_to_duplicate_groups(groups: HashMap<String, Vec<FileInfo>>) -> Vec<DuplicateGroup> {
+async fn convert_to_duplicate_groups(
+    groups: HashMap<String, Vec<FileInfo>>,
+) -> Vec<DuplicateGroup> {
     let mut duplicate_groups = Vec::new();
     let mut id_counter = 1;
-    
+
     for (key, files) in groups {
         if files.len() > 1 {
             let first_file = &files[0];
             let total_size: u64 = files.iter().map(|f| f.size).sum();
             let recoverable_size = total_size - first_file.size;
-            
+
             let mut copies = Vec::new();
             for (idx, file) in files.iter().enumerate() {
                 copies.push(DuplicateCopy {
@@ -397,7 +428,7 @@ async fn convert_to_duplicate_groups(groups: HashMap<String, Vec<FileInfo>>) -> 
                     metadata: None,
                 });
             }
-            
+
             duplicate_groups.push(DuplicateGroup {
                 id: id_counter.to_string(),
                 hash: key.clone(),
@@ -407,11 +438,11 @@ async fn convert_to_duplicate_groups(groups: HashMap<String, Vec<FileInfo>>) -> 
                 recoverable_size,
                 copies,
             });
-            
+
             id_counter += 1;
         }
     }
-    
+
     duplicate_groups
 }
 
@@ -422,7 +453,7 @@ fn get_disk_from_path(path: &str) -> Option<String> {
             return Some(path.chars().nth(0)?.to_string());
         }
     }
-    
+
     #[cfg(not(target_os = "windows"))]
     {
         // For Unix-like systems, return the mount point
@@ -430,7 +461,7 @@ fn get_disk_from_path(path: &str) -> Option<String> {
             return Some("/".to_string());
         }
     }
-    
+
     None
 }
 
@@ -453,7 +484,7 @@ fn get_file_type(name: &str) -> String {
 async fn delete_file(path: &str, move_to_trash: bool) -> Result<u64> {
     let metadata = fs::metadata(path).await?;
     let size = metadata.len();
-    
+
     if move_to_trash {
         // In a real implementation, you would move to trash
         // For now, we'll just rename the file
@@ -462,15 +493,18 @@ async fn delete_file(path: &str, move_to_trash: bool) -> Result<u64> {
     } else {
         fs::remove_file(path).await?;
     }
-    
+
     Ok(size)
 }
 
-fn apply_selection_strategy(group: &DuplicateGroup, strategy: &SelectionStrategy) -> SelectionResult {
+fn apply_selection_strategy(
+    group: &DuplicateGroup,
+    strategy: &SelectionStrategy,
+) -> SelectionResult {
     let mut keep_ids = Vec::new();
     let mut delete_ids = Vec::new();
     let reason;
-    
+
     match strategy {
         SelectionStrategy::KeepNewest => {
             // Keep the file with the most recent modified date
@@ -492,30 +526,32 @@ fn apply_selection_strategy(group: &DuplicateGroup, strategy: &SelectionStrategy
             // Prefer files in organized locations (not in Downloads, Temp, etc.)
             let organized_patterns = vec!["Documents", "Pictures", "Videos", "Music"];
             let temp_patterns = vec!["Downloads", "Temp", "tmp", "cache"];
-            
-            let mut scored_copies: Vec<(i32, &DuplicateCopy)> = group.copies.iter()
+
+            let mut scored_copies: Vec<(i32, &DuplicateCopy)> = group
+                .copies
+                .iter()
                 .map(|copy| {
                     let mut score = 0;
                     let path_lower = copy.path.to_lowercase();
-                    
+
                     // Positive score for organized locations
                     for pattern in &organized_patterns {
                         if path_lower.contains(&pattern.to_lowercase()) {
                             score += 10;
                         }
                     }
-                    
+
                     // Negative score for temporary locations
                     for pattern in &temp_patterns {
                         if path_lower.contains(&pattern.to_lowercase()) {
                             score -= 10;
                         }
                     }
-                    
+
                     (score, copy)
                 })
                 .collect();
-            
+
             scored_copies.sort_by_key(|(score, _)| -score); // Sort by score descending
             keep_ids.push(scored_copies[0].1.id.clone());
             delete_ids.extend(scored_copies[1..].iter().map(|(_, c)| c.id.clone()));
@@ -526,10 +562,11 @@ fn apply_selection_strategy(group: &DuplicateGroup, strategy: &SelectionStrategy
             // In a real implementation, this would call an AI service
             keep_ids.push(group.copies[0].id.clone());
             delete_ids.extend(group.copies[1..].iter().map(|c| c.id.clone()));
-            reason = "AI suggestion: Keeping the first copy (placeholder implementation)".to_string();
+            reason =
+                "AI suggestion: Keeping the first copy (placeholder implementation)".to_string();
         }
     }
-    
+
     SelectionResult {
         group_id: group.id.clone(),
         keep_ids,

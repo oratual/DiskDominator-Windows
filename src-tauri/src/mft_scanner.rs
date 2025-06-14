@@ -26,34 +26,34 @@ impl MftScanner {
         // On Windows, MFT is available for NTFS drives
         #[cfg(target_os = "windows")]
         return true;
-        
+
         #[cfg(not(target_os = "windows"))]
         return false;
     }
-    
+
     pub async fn scan_mft(drive_letter: &str) -> Result<MftScanResult> {
         let start = std::time::Instant::now();
-        
+
         // For now, use a simple fallback method
         let files = Self::scan_via_walkdir(drive_letter).await?;
-        
+
         Ok(MftScanResult {
             total_files: files.len(),
             files,
             scan_duration_ms: start.elapsed().as_millis() as u64,
         })
     }
-    
+
     async fn scan_via_walkdir(drive_letter: &str) -> Result<Vec<MftFileRecord>> {
-        use walkdir::WalkDir;
         use std::time::SystemTime;
-        
+        use walkdir::WalkDir;
+
         let path = format!("{}:\\", drive_letter);
-        
+
         // Use spawn_blocking for file system operations
         let files = tokio::task::spawn_blocking(move || {
             let mut collected_files = Vec::new();
-            
+
             for entry in WalkDir::new(&path)
                 .min_depth(0)
                 .max_depth(3) // Limit depth for faster scanning
@@ -61,19 +61,22 @@ impl MftScanner {
             {
                 if let Ok(entry) = entry {
                     if let Ok(metadata) = entry.metadata() {
-                        if !metadata.is_dir() && metadata.len() > 1024 * 1024 { // Only files > 1MB
-                            let modified = metadata.modified()
+                        if !metadata.is_dir() && metadata.len() > 1024 * 1024 {
+                            // Only files > 1MB
+                            let modified = metadata
+                                .modified()
                                 .unwrap_or(SystemTime::UNIX_EPOCH)
                                 .duration_since(SystemTime::UNIX_EPOCH)
                                 .unwrap_or_default()
                                 .as_secs();
-                            
-                            let created = metadata.created()
+
+                            let created = metadata
+                                .created()
                                 .unwrap_or(SystemTime::UNIX_EPOCH)
                                 .duration_since(SystemTime::UNIX_EPOCH)
                                 .unwrap_or_default()
                                 .as_secs();
-                            
+
                             collected_files.push(MftFileRecord {
                                 path: entry.path().to_string_lossy().to_string(),
                                 name: entry.file_name().to_string_lossy().to_string(),
@@ -82,7 +85,7 @@ impl MftScanner {
                                 created,
                                 is_directory: false,
                             });
-                            
+
                             // Limit to prevent memory issues
                             if collected_files.len() >= 10000 {
                                 break;
@@ -91,14 +94,15 @@ impl MftScanner {
                     }
                 }
             }
-            
+
             collected_files
-        }).await?;
-        
+        })
+        .await?;
+
         if files.is_empty() {
             return Err(anyhow::anyhow!("No files found on drive {}", drive_letter));
         }
-        
+
         Ok(files)
     }
 }

@@ -1,11 +1,11 @@
-use serde::{Deserialize, Serialize};
-use tauri::State;
-use anyhow::Result;
 use crate::app_state::AppState;
 use crate::file_system::FileInfo;
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
+use tauri::State;
 use tokio::fs;
 // use std::io::Write; // Not needed for current implementation
 
@@ -54,12 +54,12 @@ pub struct SpaceByType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SizeDistribution {
-    pub tiny: usize,      // < 1MB
-    pub small: usize,     // 1MB - 10MB
-    pub medium: usize,    // 10MB - 100MB
-    pub large: usize,     // 100MB - 1GB
-    pub huge: usize,      // 1GB - 10GB
-    pub gigantic: usize,  // > 10GB
+    pub tiny: usize,     // < 1MB
+    pub small: usize,    // 1MB - 10MB
+    pub medium: usize,   // 10MB - 100MB
+    pub large: usize,    // 100MB - 1GB
+    pub huge: usize,     // 1GB - 10GB
+    pub gigantic: usize, // > 10GB
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,15 +127,18 @@ pub async fn find_large_files(
     crate::commands::home_commands::log_activity(
         state.inner(),
         "Búsqueda de archivos grandes iniciada".to_string(),
-        format!("Filtro: min_size={:?}, max_size={:?}", 
-            filter.min_size, filter.max_size),
+        format!(
+            "Filtro: min_size={:?}, max_size={:?}",
+            filter.min_size, filter.max_size
+        ),
         crate::commands::home_commands::ActivityType::ScanStarted,
         "running".to_string(),
         None,
-    ).await;
+    )
+    .await;
     let storage = state.storage.read().await;
     let mut large_files = Vec::new();
-    
+
     // Collect all files from scan results
     for (scan_path, files) in storage.scan_results.iter() {
         // Filter by paths if specified
@@ -144,42 +147,42 @@ pub async fn find_large_files(
                 continue;
             }
         }
-        
+
         for file in files {
             if file.is_directory {
                 continue;
             }
-            
+
             // Apply size filters
             if let Some(min_size) = filter.min_size {
                 if file.size < min_size {
                     continue;
                 }
             }
-            
+
             if let Some(max_size) = filter.max_size {
                 if file.size > max_size {
                     continue;
                 }
             }
-            
+
             let file_type = get_file_type(&file.name);
             let extension = get_file_extension(&file.name);
-            
+
             // Apply file type filter
             if let Some(ref types) = filter.file_types {
                 if !types.contains(&file_type) {
                     continue;
                 }
             }
-            
+
             // Apply extension filter
             if let Some(ref extensions) = filter.extensions {
                 if !extensions.contains(&extension) {
                     continue;
                 }
             }
-            
+
             large_files.push(LargeFileInfo {
                 id: format!("{:x}", md5::compute(&file.path)),
                 path: file.path.clone(),
@@ -196,10 +199,10 @@ pub async fn find_large_files(
             });
         }
     }
-    
+
     // Sort results
     sort_large_files(&mut large_files, &filter.sort_by, &filter.sort_order);
-    
+
     // Log scan completion activity
     let total_size: u64 = large_files.iter().map(|f| f.size).sum();
     crate::commands::home_commands::log_activity(
@@ -214,8 +217,9 @@ pub async fn find_large_files(
             duration: None,
             error: None,
         }),
-    ).await;
-    
+    )
+    .await;
+
     Ok(large_files)
 }
 
@@ -238,7 +242,7 @@ pub async fn get_file_space_analysis(
         huge: 0,
         gigantic: 0,
     };
-    
+
     // Analyze all files
     for (scan_path, files) in storage.scan_results.iter() {
         // Filter by paths if specified
@@ -247,15 +251,15 @@ pub async fn get_file_space_analysis(
                 continue;
             }
         }
-        
+
         for file in files {
             if file.is_directory {
                 continue;
             }
-            
+
             total_size += file.size;
             file_count += 1;
-            
+
             // Group by file type
             let file_type = get_file_type(&file.name);
             let type_entry = by_type.entry(file_type).or_insert(SpaceByType {
@@ -265,31 +269,31 @@ pub async fn get_file_space_analysis(
             });
             type_entry.size += file.size;
             type_entry.count += 1;
-            
+
             // Group by disk
             if let Some(disk) = get_disk_from_path(&file.path) {
                 *by_disk.entry(disk).or_insert(0) += file.size;
             }
-            
+
             // Size distribution
             match file.size {
-                s if s < 1_048_576 => size_distribution.tiny += 1,                    // < 1MB
-                s if s < 10_485_760 => size_distribution.small += 1,                  // 1MB - 10MB
-                s if s < 104_857_600 => size_distribution.medium += 1,                // 10MB - 100MB
-                s if s < 1_073_741_824 => size_distribution.large += 1,               // 100MB - 1GB
-                s if s < 10_737_418_240 => size_distribution.huge += 1,               // 1GB - 10GB
-                _ => size_distribution.gigantic += 1,                                  // > 10GB
+                s if s < 1_048_576 => size_distribution.tiny += 1, // < 1MB
+                s if s < 10_485_760 => size_distribution.small += 1, // 1MB - 10MB
+                s if s < 104_857_600 => size_distribution.medium += 1, // 10MB - 100MB
+                s if s < 1_073_741_824 => size_distribution.large += 1, // 100MB - 1GB
+                s if s < 10_737_418_240 => size_distribution.huge += 1, // 1GB - 10GB
+                _ => size_distribution.gigantic += 1,              // > 10GB
             }
         }
     }
-    
+
     // Calculate percentages
     if total_size > 0 {
         for type_info in by_type.values_mut() {
             type_info.percentage = (type_info.size as f64 / total_size as f64) * 100.0;
         }
     }
-    
+
     Ok(SpaceAnalysis {
         total_size,
         file_count,
@@ -306,38 +310,42 @@ pub async fn compress_file(
     options: CompressionOptions,
 ) -> Result<CompressionResult, String> {
     let start_time = std::time::Instant::now();
-    
+
     // Get original file info
-    let metadata = fs::metadata(&file_path).await
+    let metadata = fs::metadata(&file_path)
+        .await
         .map_err(|e| format!("Failed to read file metadata: {}", e))?;
     let original_size = metadata.len();
-    
+
     // Generate output path
     let output_path = generate_compressed_path(&file_path, &options.format);
-    
+
     // Perform compression based on format
     let compressed_size = match options.format {
         CompressionFormat::Zip => compress_to_zip(&file_path, &output_path, &options.level).await?,
         CompressionFormat::Tar => compress_to_tar(&file_path, &output_path).await?,
-        CompressionFormat::TarGz => compress_to_tar_gz(&file_path, &output_path, &options.level).await?,
+        CompressionFormat::TarGz => {
+            compress_to_tar_gz(&file_path, &output_path, &options.level).await?
+        }
         CompressionFormat::SevenZ => {
             return Err("7z compression not yet implemented".to_string());
         }
     };
-    
+
     // Delete original if requested
     if !options.keep_original {
-        fs::remove_file(&file_path).await
+        fs::remove_file(&file_path)
+            .await
             .map_err(|e| format!("Failed to delete original file: {}", e))?;
     }
-    
+
     let time_taken = start_time.elapsed().as_millis() as u64;
     let compression_ratio = if original_size > 0 {
         (1.0 - (compressed_size as f64 / original_size as f64)) * 100.0
     } else {
         0.0
     };
-    
+
     Ok(CompressionResult {
         original_size,
         compressed_size,
@@ -349,18 +357,20 @@ pub async fn compress_file(
 
 /// Generate a preview for a file
 #[tauri::command]
-pub async fn generate_file_preview(
-    file_path: String,
-) -> Result<FilePreview, String> {
-    let metadata = fs::metadata(&file_path).await
+pub async fn generate_file_preview(file_path: String) -> Result<FilePreview, String> {
+    let metadata = fs::metadata(&file_path)
+        .await
         .map_err(|e| format!("Failed to read file metadata: {}", e))?;
-    
+
     let mut preview_metadata = HashMap::new();
-    preview_metadata.insert("size".to_string(), serde_json::Value::Number(metadata.len().into()));
-    
+    preview_metadata.insert(
+        "size".to_string(),
+        serde_json::Value::Number(metadata.len().into()),
+    );
+
     let file_type = get_file_type(&file_path);
     let extension = get_file_extension(&file_path);
-    
+
     let (preview_type, content) = match file_type.as_str() {
         "text" | "code" => {
             // Read first 1000 characters for text files
@@ -369,23 +379,38 @@ pub async fn generate_file_preview(
         }
         "image" => {
             // For images, we'll just return metadata for now
-            preview_metadata.insert("type".to_string(), serde_json::Value::String("image".to_string()));
-            preview_metadata.insert("extension".to_string(), serde_json::Value::String(extension));
+            preview_metadata.insert(
+                "type".to_string(),
+                serde_json::Value::String("image".to_string()),
+            );
+            preview_metadata.insert(
+                "extension".to_string(),
+                serde_json::Value::String(extension),
+            );
             ("image".to_string(), None)
         }
         "video" | "audio" => {
             // For media files, return basic metadata
-            preview_metadata.insert("type".to_string(), serde_json::Value::String(file_type.clone()));
-            preview_metadata.insert("extension".to_string(), serde_json::Value::String(extension));
+            preview_metadata.insert(
+                "type".to_string(),
+                serde_json::Value::String(file_type.clone()),
+            );
+            preview_metadata.insert(
+                "extension".to_string(),
+                serde_json::Value::String(extension),
+            );
             ("media".to_string(), None)
         }
         _ => {
             // For other files, just return basic info
-            preview_metadata.insert("type".to_string(), serde_json::Value::String("binary".to_string()));
+            preview_metadata.insert(
+                "type".to_string(),
+                serde_json::Value::String("binary".to_string()),
+            );
             ("binary".to_string(), None)
         }
     };
-    
+
     Ok(FilePreview {
         path: file_path,
         preview_type,
@@ -404,11 +429,11 @@ pub async fn delete_large_files_batch(
     let mut deleted = Vec::new();
     let mut failed = Vec::new();
     let mut space_freed = 0u64;
-    
+
     // Get file info from storage to map IDs to paths
     let storage = state.storage.read().await;
     let mut id_to_file: HashMap<String, FileInfo> = HashMap::new();
-    
+
     for files in storage.scan_results.values() {
         for file in files {
             let file_id = format!("{:x}", md5::compute(&file.path));
@@ -417,7 +442,7 @@ pub async fn delete_large_files_batch(
             }
         }
     }
-    
+
     // Delete each file
     for file_id in file_ids {
         if let Some(file_info) = id_to_file.get(&file_id) {
@@ -442,7 +467,7 @@ pub async fn delete_large_files_batch(
             });
         }
     }
-    
+
     // Log deletion activity if any files were deleted
     if !deleted.is_empty() {
         crate::commands::home_commands::log_activity(
@@ -457,7 +482,8 @@ pub async fn delete_large_files_batch(
                 duration: None,
                 error: None,
             }),
-        ).await;
+        )
+        .await;
     }
 
     Ok(BatchDeleteResult {
@@ -473,17 +499,23 @@ fn get_file_type(name: &str) -> String {
     if let Some(extension) = Path::new(name).extension() {
         let ext = extension.to_string_lossy().to_lowercase();
         match ext.as_str() {
-            "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tiff" => "image".to_string(),
-            "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" => "video".to_string(),
+            "jpg" | "jpeg" | "png" | "gif" | "bmp" | "svg" | "webp" | "ico" | "tiff" => {
+                "image".to_string()
+            }
+            "mp4" | "avi" | "mkv" | "mov" | "wmv" | "flv" | "webm" | "m4v" | "mpg" | "mpeg" => {
+                "video".to_string()
+            }
             "mp3" | "wav" | "flac" | "aac" | "ogg" | "wma" | "m4a" | "opus" => "audio".to_string(),
             "pdf" | "doc" | "docx" | "txt" | "odt" | "rtf" | "tex" => "document".to_string(),
             "xls" | "xlsx" | "csv" | "ods" => "spreadsheet".to_string(),
             "ppt" | "pptx" | "odp" => "presentation".to_string(),
             "zip" | "rar" | "7z" | "tar" | "gz" | "bz2" | "xz" => "archive".to_string(),
             "exe" | "msi" | "app" | "deb" | "rpm" | "dmg" | "pkg" => "executable".to_string(),
-            "js" | "ts" | "py" | "java" | "c" | "cpp" | "rs" | "go" | "rb" | "php" | "swift" | 
-            "kt" | "scala" | "r" | "m" | "h" | "sh" | "bat" | "ps1" => "code".to_string(),
-            "json" | "xml" | "yaml" | "yml" | "toml" | "ini" | "conf" | "cfg" => "config".to_string(),
+            "js" | "ts" | "py" | "java" | "c" | "cpp" | "rs" | "go" | "rb" | "php" | "swift"
+            | "kt" | "scala" | "r" | "m" | "h" | "sh" | "bat" | "ps1" => "code".to_string(),
+            "json" | "xml" | "yaml" | "yml" | "toml" | "ini" | "conf" | "cfg" => {
+                "config".to_string()
+            }
             "sql" | "db" | "sqlite" => "database".to_string(),
             "log" | "out" | "err" => "log".to_string(),
             "md" | "markdown" | "rst" | "adoc" => "markdown".to_string(),
@@ -500,7 +532,7 @@ fn get_file_extension(name: &str) -> String {
         .extension()
         .and_then(|e| e.to_str())
         .map(|e| e.to_lowercase())
-        .unwrap_or_else(|| String::new())
+        .unwrap_or_default()
 }
 
 fn get_disk_from_path(path: &str) -> Option<String> {
@@ -510,7 +542,7 @@ fn get_disk_from_path(path: &str) -> Option<String> {
             return Some(format!("{}:", path.chars().nth(0)?));
         }
     }
-    
+
     #[cfg(not(target_os = "windows"))]
     {
         // For Unix-like systems, return the mount point
@@ -525,35 +557,39 @@ fn get_disk_from_path(path: &str) -> Option<String> {
             return Some("/".to_string());
         }
     }
-    
+
     None
 }
 
 fn estimate_compression_potential(file_type: &str, extension: &str) -> f64 {
     // Estimate compression potential based on file type
     match file_type {
-        "text" | "code" | "log" | "markdown" | "config" => 0.7,  // 70% potential reduction
-        "document" | "spreadsheet" | "presentation" => 0.5,       // 50% potential reduction
-        "database" => 0.6,                                        // 60% potential reduction
-        "web" => 0.4,                                            // 40% potential reduction
+        "text" | "code" | "log" | "markdown" | "config" => 0.7, // 70% potential reduction
+        "document" | "spreadsheet" | "presentation" => 0.5,     // 50% potential reduction
+        "database" => 0.6,                                      // 60% potential reduction
+        "web" => 0.4,                                           // 40% potential reduction
         "image" => {
             match extension {
-                "bmp" | "tiff" => 0.7,                           // Uncompressed formats
-                "png" => 0.2,                                     // Already compressed
-                "jpg" | "jpeg" => 0.1,                           // Already compressed
+                "bmp" | "tiff" => 0.7, // Uncompressed formats
+                "png" => 0.2,          // Already compressed
+                "jpg" | "jpeg" => 0.1, // Already compressed
                 _ => 0.3,
             }
         }
-        "video" | "audio" => 0.1,                                 // Already compressed
-        "archive" => 0.05,                                        // Already compressed
-        "executable" => 0.3,                                      // Some potential
-        _ => 0.4,                                                 // Default estimate
+        "video" | "audio" => 0.1, // Already compressed
+        "archive" => 0.05,        // Already compressed
+        "executable" => 0.3,      // Some potential
+        _ => 0.4,                 // Default estimate
     }
 }
 
-fn sort_large_files(files: &mut Vec<LargeFileInfo>, sort_by: &Option<String>, sort_order: &Option<String>) {
+fn sort_large_files(
+    files: &mut Vec<LargeFileInfo>,
+    sort_by: &Option<String>,
+    sort_order: &Option<String>,
+) {
     let ascending = sort_order.as_ref().map(|o| o == "asc").unwrap_or(false);
-    
+
     match sort_by.as_ref().map(|s| s.as_str()) {
         Some("size") => {
             if ascending {
@@ -593,7 +629,7 @@ fn sort_large_files(files: &mut Vec<LargeFileInfo>, sort_by: &Option<String>, so
 async fn delete_file(path: &str, move_to_trash: bool) -> Result<u64> {
     let metadata = fs::metadata(path).await?;
     let size = metadata.len();
-    
+
     if move_to_trash {
         // In a real implementation, you would use a proper trash library
         // For now, we'll just rename the file
@@ -602,22 +638,24 @@ async fn delete_file(path: &str, move_to_trash: bool) -> Result<u64> {
     } else {
         fs::remove_file(path).await?;
     }
-    
+
     Ok(size)
 }
 
 async fn read_text_preview(path: &str, max_chars: usize) -> Result<String, String> {
     use tokio::io::AsyncReadExt;
-    
-    let mut file = fs::File::open(path).await
+
+    let mut file = fs::File::open(path)
+        .await
         .map_err(|e| format!("Failed to open file: {}", e))?;
-    
+
     let mut buffer = vec![0; max_chars];
-    let n = file.read(&mut buffer).await
+    let n = file
+        .read(&mut buffer)
+        .await
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
-    String::from_utf8(buffer[..n].to_vec())
-        .map_err(|_| "File is not valid UTF-8 text".to_string())
+
+    String::from_utf8(buffer[..n].to_vec()).map_err(|_| "File is not valid UTF-8 text".to_string())
 }
 
 fn generate_compressed_path(original_path: &str, format: &CompressionFormat) -> String {
@@ -627,109 +665,122 @@ fn generate_compressed_path(original_path: &str, format: &CompressionFormat) -> 
         CompressionFormat::TarGz => "tar.gz",
         CompressionFormat::SevenZ => "7z",
     };
-    
+
     format!("{}.{}", original_path, extension)
 }
 
-async fn compress_to_zip(file_path: &str, output_path: &str, level: &CompressionLevel) -> Result<u64, String> {
+async fn compress_to_zip(
+    file_path: &str,
+    output_path: &str,
+    level: &CompressionLevel,
+) -> Result<u64, String> {
     use std::io::{Read, Write};
     use zip::write::FileOptions;
-    
-    let file = std::fs::File::open(file_path)
-        .map_err(|e| format!("Failed to open source file: {}", e))?;
-    
+
+    let file =
+        std::fs::File::open(file_path).map_err(|e| format!("Failed to open source file: {}", e))?;
+
     let output_file = std::fs::File::create(output_path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
-    
+
     let mut zip = zip::ZipWriter::new(output_file);
-    
+
     let options = match level {
-        CompressionLevel::Fast => FileOptions::default().compression_method(zip::CompressionMethod::Stored),
+        CompressionLevel::Fast => {
+            FileOptions::default().compression_method(zip::CompressionMethod::Stored)
+        }
         CompressionLevel::Normal => FileOptions::default(),
-        CompressionLevel::Best => FileOptions::default().compression_method(zip::CompressionMethod::Deflated),
+        CompressionLevel::Best => {
+            FileOptions::default().compression_method(zip::CompressionMethod::Deflated)
+        }
     };
-    
+
     let file_name = Path::new(file_path)
         .file_name()
         .ok_or("Invalid file name")?
         .to_string_lossy();
-    
+
     zip.start_file(file_name, options)
         .map_err(|e| format!("Failed to start zip file: {}", e))?;
-    
+
     let mut buffer = Vec::new();
     let mut file = file;
     file.read_to_end(&mut buffer)
         .map_err(|e| format!("Failed to read file: {}", e))?;
-    
+
     zip.write_all(&buffer)
         .map_err(|e| format!("Failed to write to zip: {}", e))?;
-    
+
     zip.finish()
         .map_err(|e| format!("Failed to finish zip: {}", e))?;
-    
+
     let metadata = std::fs::metadata(output_path)
         .map_err(|e| format!("Failed to get output file metadata: {}", e))?;
-    
+
     Ok(metadata.len())
 }
 
 async fn compress_to_tar(file_path: &str, output_path: &str) -> Result<u64, String> {
     use tar::Builder;
-    
+
     let output_file = std::fs::File::create(output_path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
-    
+
     let mut tar = Builder::new(output_file);
-    
+
     let file_name = Path::new(file_path)
         .file_name()
         .ok_or("Invalid file name")?;
-    
+
     tar.append_path_with_name(file_path, file_name)
         .map_err(|e| format!("Failed to add file to tar: {}", e))?;
-    
+
     tar.finish()
         .map_err(|e| format!("Failed to finish tar: {}", e))?;
-    
+
     let metadata = std::fs::metadata(output_path)
         .map_err(|e| format!("Failed to get output file metadata: {}", e))?;
-    
+
     Ok(metadata.len())
 }
 
-async fn compress_to_tar_gz(file_path: &str, output_path: &str, level: &CompressionLevel) -> Result<u64, String> {
+async fn compress_to_tar_gz(
+    file_path: &str,
+    output_path: &str,
+    level: &CompressionLevel,
+) -> Result<u64, String> {
     use flate2::write::GzEncoder;
     use flate2::Compression;
     use tar::Builder;
-    
+
     let output_file = std::fs::File::create(output_path)
         .map_err(|e| format!("Failed to create output file: {}", e))?;
-    
+
     let compression = match level {
         CompressionLevel::Fast => Compression::fast(),
         CompressionLevel::Normal => Compression::default(),
         CompressionLevel::Best => Compression::best(),
     };
-    
+
     let gz = GzEncoder::new(output_file, compression);
     let mut tar = Builder::new(gz);
-    
+
     let file_name = Path::new(file_path)
         .file_name()
         .ok_or("Invalid file name")?;
-    
+
     tar.append_path_with_name(file_path, file_name)
         .map_err(|e| format!("Failed to add file to tar: {}", e))?;
-    
-    let gz = tar.into_inner()
+
+    let gz = tar
+        .into_inner()
         .map_err(|e| format!("Failed to get gz encoder: {}", e))?;
-    
+
     gz.finish()
         .map_err(|e| format!("Failed to finish compression: {}", e))?;
-    
+
     let metadata = std::fs::metadata(output_path)
         .map_err(|e| format!("Failed to get output file metadata: {}", e))?;
-    
+
     Ok(metadata.len())
 }

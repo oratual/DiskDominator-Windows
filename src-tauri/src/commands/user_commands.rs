@@ -1,9 +1,9 @@
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
-use anyhow::Result;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserProfile {
@@ -46,9 +46,9 @@ pub struct UserPreferences {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ReadabilitySettings {
-    pub text_size: String, // "small", "normal", "large"
-    pub contrast: String, // "normal", "high"
-    pub spacing: String, // "normal", "wide"
+    pub text_size: String,    // "small", "normal", "large"
+    pub contrast: String,     // "normal", "high"
+    pub spacing: String,      // "normal", "wide"
     pub color_filter: String, // "none", "grayscale", "protanopia", "deuteranopia", "tritanopia"
     pub reduce_motion: bool,
     pub high_contrast_mode: bool,
@@ -87,32 +87,35 @@ pub struct UserCredits {
 }
 
 fn get_user_data_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_dir = app.path_resolver()
+    let app_dir = app
+        .path_resolver()
         .app_data_dir()
         .ok_or("Could not get app data directory")?;
-    
+
     fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app directory: {}", e))?;
-    
+
     Ok(app_dir.join("user_data.json"))
 }
 
 fn get_preferences_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_dir = app.path_resolver()
+    let app_dir = app
+        .path_resolver()
         .app_data_dir()
         .ok_or("Could not get app data directory")?;
-    
+
     fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app directory: {}", e))?;
-    
+
     Ok(app_dir.join("user_preferences.json"))
 }
 
 fn get_credits_path(app: &AppHandle) -> Result<PathBuf, String> {
-    let app_dir = app.path_resolver()
+    let app_dir = app
+        .path_resolver()
         .app_data_dir()
         .ok_or("Could not get app data directory")?;
-    
+
     fs::create_dir_all(&app_dir).map_err(|e| format!("Failed to create app directory: {}", e))?;
-    
+
     Ok(app_dir.join("user_credits.json"))
 }
 
@@ -121,11 +124,11 @@ fn create_default_user_profile() -> UserProfile {
     let username = std::env::var("USER")
         .or_else(|_| std::env::var("USERNAME"))
         .unwrap_or_else(|_| whoami::username());
-    
+
     // Get REAL hostname for email
     let hostname = whoami::hostname();
     let email = format!("{}@{}", username, hostname);
-    
+
     // Get real name if available
     let realname = whoami::realname();
     let display_name = if realname.is_empty() {
@@ -133,13 +136,13 @@ fn create_default_user_profile() -> UserProfile {
     } else {
         realname
     };
-    
+
     UserProfile {
         id: format!("user-{}", username),
         name: display_name,
         email,
         avatar_url: None, // No fake avatar
-        credits: 0, // Start with 0 real credits
+        credits: 0,       // Start with 0 real credits
         plan: UserPlan::Free,
         created_at: chrono::Utc::now().to_rfc3339(),
         last_login: chrono::Utc::now().to_rfc3339(),
@@ -182,7 +185,7 @@ fn create_default_preferences() -> UserPreferences {
 
 fn create_default_credits() -> UserCredits {
     UserCredits {
-        balance: 0, // Start with ZERO credits
+        balance: 0,      // Start with ZERO credits
         history: vec![], // NO fake transactions
         pending: 0,
     }
@@ -192,24 +195,23 @@ fn create_default_credits() -> UserCredits {
 #[tauri::command]
 pub async fn get_user_profile(app: AppHandle) -> Result<UserProfile, String> {
     let user_path = get_user_data_path(&app)?;
-    
+
     if user_path.exists() {
         let content = fs::read_to_string(&user_path)
             .map_err(|e| format!("Failed to read user data: {}", e))?;
-        
+
         let profile: UserProfile = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse user data: {}", e))?;
-        
+
         Ok(profile)
     } else {
         // Create default profile
         let profile = create_default_user_profile();
         let content = serde_json::to_string_pretty(&profile)
             .map_err(|e| format!("Failed to serialize user data: {}", e))?;
-        
-        fs::write(&user_path, content)
-            .map_err(|e| format!("Failed to save user data: {}", e))?;
-        
+
+        fs::write(&user_path, content).map_err(|e| format!("Failed to save user data: {}", e))?;
+
         Ok(profile)
     }
 }
@@ -218,19 +220,18 @@ pub async fn get_user_profile(app: AppHandle) -> Result<UserProfile, String> {
 #[tauri::command]
 pub async fn update_user_preferences(
     app: AppHandle,
-    preferences: UserPreferences
+    preferences: UserPreferences,
 ) -> Result<UserPreferences, String> {
     let prefs_path = get_preferences_path(&app)?;
-    
+
     let mut updated_prefs = preferences;
     updated_prefs.updated_at = chrono::Utc::now().to_rfc3339();
-    
+
     let content = serde_json::to_string_pretty(&updated_prefs)
         .map_err(|e| format!("Failed to serialize preferences: {}", e))?;
-    
-    fs::write(&prefs_path, content)
-        .map_err(|e| format!("Failed to save preferences: {}", e))?;
-    
+
+    fs::write(&prefs_path, content).map_err(|e| format!("Failed to save preferences: {}", e))?;
+
     Ok(updated_prefs)
 }
 
@@ -238,24 +239,24 @@ pub async fn update_user_preferences(
 #[tauri::command]
 pub async fn get_user_preferences(app: AppHandle) -> Result<UserPreferences, String> {
     let prefs_path = get_preferences_path(&app)?;
-    
+
     if prefs_path.exists() {
         let content = fs::read_to_string(&prefs_path)
             .map_err(|e| format!("Failed to read preferences: {}", e))?;
-        
+
         let preferences: UserPreferences = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse preferences: {}", e))?;
-        
+
         Ok(preferences)
     } else {
         // Create default preferences
         let preferences = create_default_preferences();
         let content = serde_json::to_string_pretty(&preferences)
             .map_err(|e| format!("Failed to serialize preferences: {}", e))?;
-        
+
         fs::write(&prefs_path, content)
             .map_err(|e| format!("Failed to save preferences: {}", e))?;
-        
+
         Ok(preferences)
     }
 }
@@ -264,24 +265,23 @@ pub async fn get_user_preferences(app: AppHandle) -> Result<UserPreferences, Str
 #[tauri::command]
 pub async fn get_user_credits(app: AppHandle) -> Result<UserCredits, String> {
     let credits_path = get_credits_path(&app)?;
-    
+
     if credits_path.exists() {
         let content = fs::read_to_string(&credits_path)
             .map_err(|e| format!("Failed to read credits data: {}", e))?;
-        
+
         let credits: UserCredits = serde_json::from_str(&content)
             .map_err(|e| format!("Failed to parse credits data: {}", e))?;
-        
+
         Ok(credits)
     } else {
         // Create default credits
         let credits = create_default_credits();
         let content = serde_json::to_string_pretty(&credits)
             .map_err(|e| format!("Failed to serialize credits: {}", e))?;
-        
-        fs::write(&credits_path, content)
-            .map_err(|e| format!("Failed to save credits: {}", e))?;
-        
+
+        fs::write(&credits_path, content).map_err(|e| format!("Failed to save credits: {}", e))?;
+
         Ok(credits)
     }
 }
@@ -290,7 +290,7 @@ pub async fn get_user_credits(app: AppHandle) -> Result<UserCredits, String> {
 #[tauri::command]
 pub async fn update_accessibility_settings(
     app: AppHandle,
-    readability: ReadabilitySettings
+    readability: ReadabilitySettings,
 ) -> Result<UserPreferences, String> {
     let mut preferences = get_user_preferences(app.clone()).await?;
     preferences.readability = readability;
@@ -303,12 +303,12 @@ pub async fn add_user_credits(
     app: AppHandle,
     amount: i32,
     description: String,
-    transaction_type: String
+    transaction_type: String,
 ) -> Result<UserCredits, String> {
     let mut credits = get_user_credits(app.clone()).await?;
-    
+
     credits.balance += amount;
-    
+
     let transaction = CreditTransaction {
         id: format!("txn_{}", chrono::Utc::now().timestamp_millis()),
         transaction_type,
@@ -317,17 +317,16 @@ pub async fn add_user_credits(
         date: chrono::Utc::now().to_rfc3339(),
         metadata: None,
     };
-    
+
     credits.history.push(transaction);
-    
+
     // Save updated credits
     let credits_path = get_credits_path(&app)?;
     let content = serde_json::to_string_pretty(&credits)
         .map_err(|e| format!("Failed to serialize credits: {}", e))?;
-    
-    fs::write(&credits_path, content)
-        .map_err(|e| format!("Failed to save credits: {}", e))?;
-    
+
+    fs::write(&credits_path, content).map_err(|e| format!("Failed to save credits: {}", e))?;
+
     Ok(credits)
 }
 
@@ -336,16 +335,16 @@ pub async fn add_user_credits(
 pub async fn spend_user_credits(
     app: AppHandle,
     amount: i32,
-    description: String
+    description: String,
 ) -> Result<UserCredits, String> {
     let mut credits = get_user_credits(app.clone()).await?;
-    
+
     if credits.balance < amount {
         return Err("Insufficient credits".to_string());
     }
-    
+
     credits.balance -= amount;
-    
+
     let transaction = CreditTransaction {
         id: format!("txn_{}", chrono::Utc::now().timestamp_millis()),
         transaction_type: "spent".to_string(),
@@ -354,61 +353,68 @@ pub async fn spend_user_credits(
         date: chrono::Utc::now().to_rfc3339(),
         metadata: None,
     };
-    
+
     credits.history.push(transaction);
-    
+
     // Save updated credits
     let credits_path = get_credits_path(&app)?;
     let content = serde_json::to_string_pretty(&credits)
         .map_err(|e| format!("Failed to serialize credits: {}", e))?;
-    
-    fs::write(&credits_path, content)
-        .map_err(|e| format!("Failed to save credits: {}", e))?;
-    
+
+    fs::write(&credits_path, content).map_err(|e| format!("Failed to save credits: {}", e))?;
+
     Ok(credits)
 }
 
 /// Export user data for backup/portability
 #[tauri::command]
-pub async fn export_user_data(app: AppHandle) -> Result<HashMap<String, serde_json::Value>, String> {
+pub async fn export_user_data(
+    app: AppHandle,
+) -> Result<HashMap<String, serde_json::Value>, String> {
     let profile = get_user_profile(app.clone()).await?;
     let preferences = get_user_preferences(app.clone()).await?;
     let credits = get_user_credits(app).await?;
-    
+
     let mut export_data = HashMap::new();
-    
-    export_data.insert("profile".to_string(), serde_json::to_value(profile)
-        .map_err(|e| format!("Failed to serialize profile: {}", e))?);
-    
-    export_data.insert("preferences".to_string(), serde_json::to_value(preferences)
-        .map_err(|e| format!("Failed to serialize preferences: {}", e))?);
-    
-    export_data.insert("credits".to_string(), serde_json::to_value(credits)
-        .map_err(|e| format!("Failed to serialize credits: {}", e))?);
-    
-    export_data.insert("export_date".to_string(), serde_json::to_value(chrono::Utc::now().to_rfc3339())
-        .map_err(|e| format!("Failed to serialize date: {}", e))?);
-    
+
+    export_data.insert(
+        "profile".to_string(),
+        serde_json::to_value(profile).map_err(|e| format!("Failed to serialize profile: {}", e))?,
+    );
+
+    export_data.insert(
+        "preferences".to_string(),
+        serde_json::to_value(preferences)
+            .map_err(|e| format!("Failed to serialize preferences: {}", e))?,
+    );
+
+    export_data.insert(
+        "credits".to_string(),
+        serde_json::to_value(credits).map_err(|e| format!("Failed to serialize credits: {}", e))?,
+    );
+
+    export_data.insert(
+        "export_date".to_string(),
+        serde_json::to_value(chrono::Utc::now().to_rfc3339())
+            .map_err(|e| format!("Failed to serialize date: {}", e))?,
+    );
+
     Ok(export_data)
 }
 
 /// Update user profile stats
 #[tauri::command]
-pub async fn update_user_stats(
-    app: AppHandle,
-    stats: UserStats
-) -> Result<UserProfile, String> {
+pub async fn update_user_stats(app: AppHandle, stats: UserStats) -> Result<UserProfile, String> {
     let mut profile = get_user_profile(app.clone()).await?;
     profile.stats = stats;
     profile.last_login = chrono::Utc::now().to_rfc3339();
-    
+
     let user_path = get_user_data_path(&app)?;
     let content = serde_json::to_string_pretty(&profile)
         .map_err(|e| format!("Failed to serialize profile: {}", e))?;
-    
-    fs::write(&user_path, content)
-        .map_err(|e| format!("Failed to save profile: {}", e))?;
-    
+
+    fs::write(&user_path, content).map_err(|e| format!("Failed to save profile: {}", e))?;
+
     Ok(profile)
 }
 

@@ -1,8 +1,8 @@
+use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
-use serde::{Deserialize, Serialize};
-use anyhow::Result;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -81,11 +81,7 @@ impl WebSocketManager {
     }
 
     /// Start a new scan session
-    pub async fn start_scan_session(
-        &self,
-        disk_id: String,
-        scan_type: String,
-    ) -> Result<String> {
+    pub async fn start_scan_session(&self, disk_id: String, scan_type: String) -> Result<String> {
         let session_id = Uuid::new_v4().to_string();
         let session = ScanSession {
             id: session_id.clone(),
@@ -119,7 +115,8 @@ impl WebSocketManager {
             status: "started".to_string(),
             scan_type,
             message: "Scan session started".to_string(),
-        }).await?;
+        })
+        .await?;
 
         Ok(session_id)
     }
@@ -169,11 +166,18 @@ impl WebSocketManager {
 
         self.broadcast_session_message(ScanSessionMessage {
             session_id: session_id.to_string(),
-            disk_id: self.get_session_disk_id(session_id).await.unwrap_or_default(),
+            disk_id: self
+                .get_session_disk_id(session_id)
+                .await
+                .unwrap_or_default(),
             status: "paused".to_string(),
-            scan_type: self.get_session_scan_type(session_id).await.unwrap_or_default(),
+            scan_type: self
+                .get_session_scan_type(session_id)
+                .await
+                .unwrap_or_default(),
             message: "Scan paused".to_string(),
-        }).await?;
+        })
+        .await?;
 
         Ok(())
     }
@@ -190,11 +194,18 @@ impl WebSocketManager {
 
         self.broadcast_session_message(ScanSessionMessage {
             session_id: session_id.to_string(),
-            disk_id: self.get_session_disk_id(session_id).await.unwrap_or_default(),
+            disk_id: self
+                .get_session_disk_id(session_id)
+                .await
+                .unwrap_or_default(),
             status: "resumed".to_string(),
-            scan_type: self.get_session_scan_type(session_id).await.unwrap_or_default(),
+            scan_type: self
+                .get_session_scan_type(session_id)
+                .await
+                .unwrap_or_default(),
             message: "Scan resumed".to_string(),
-        }).await?;
+        })
+        .await?;
 
         Ok(())
     }
@@ -211,11 +222,18 @@ impl WebSocketManager {
 
         self.broadcast_session_message(ScanSessionMessage {
             session_id: session_id.to_string(),
-            disk_id: self.get_session_disk_id(session_id).await.unwrap_or_default(),
+            disk_id: self
+                .get_session_disk_id(session_id)
+                .await
+                .unwrap_or_default(),
             status: "completed".to_string(),
-            scan_type: self.get_session_scan_type(session_id).await.unwrap_or_default(),
+            scan_type: self
+                .get_session_scan_type(session_id)
+                .await
+                .unwrap_or_default(),
             message: "Scan completed".to_string(),
-        }).await?;
+        })
+        .await?;
 
         Ok(())
     }
@@ -282,7 +300,11 @@ impl WebSocketManager {
     }
 
     /// Broadcast a generic message
-    pub async fn broadcast_message(&self, message_type: String, data: serde_json::Value) -> Result<()> {
+    pub async fn broadcast_message(
+        &self,
+        message_type: String,
+        data: serde_json::Value,
+    ) -> Result<()> {
         let message = WebSocketMessage {
             message_type,
             data,
@@ -309,7 +331,9 @@ impl WebSocketManager {
             }),
         };
 
-        let _ = self.broadcast_message(event_type.to_string(), message_data).await;
+        let _ = self
+            .broadcast_message(event_type.to_string(), message_data)
+            .await;
     }
 }
 
